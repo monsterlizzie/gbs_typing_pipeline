@@ -40,7 +40,7 @@ The GBS Pipeline includes:
 | **Resistance Typing**     | `srst2`, `freebayes`                | IIdentifies resistance genes and GBS-specific SNP variants |
 | **MLST**                  | `srst2`                             | Matches sample alleles to existing MLST scheme; detects novel alleles if present |
 | **Surface Protein Typing**| `srst2`                             | Detects major surface protein genes associated with GBS virulence and immune evasion |
-| **PBP Allele Typing**     | `blastn`, `blastp`, custom scripts  | Identifies penicillin-binding protein (PBP) alleles from assemblies |
+| **PBP Typing**     | `blastn`, `blastp`, custom scripts  | Identifies penicillin-binding protein (PBP) alleles from assemblies |
 
 ---
 
