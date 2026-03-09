@@ -69,7 +69,7 @@ output/
 
 ## 📘 Typing Output Descriptions
 
-The pipeline produces detailed output files under `output/typer/`. See full descriptions in the original [GBS-Typer documentation](https://github.com/sanger-bentley-group/GBS-Typer-sanger-nf#outputs), (https://docs.google.com/spreadsheets/d/1R5FFvACC3a6KCKkTiluhTj492-4cCe74HcCoklqX-X0/edit?gid=0#gid=0) including:
+The pipeline produces detailed output files under `output/typer/`. See full descriptions in the original [GBS-Typer documentation](https://github.com/sanger-bentley-group/GBS-Typer-sanger-nf#outputs), [Report columns details](https://docs.google.com/spreadsheets/d/1R5FFvACC3a6KCKkTiluhTj492-4cCe74HcCoklqX-X0/edit?gid=0#gid=0) including:
 
 - `serotype_res_incidence.txt`: presence/absence of serotypes and resistance genes
 - `gbs_res_variants.txt`: amino acid variants in resistance genes
