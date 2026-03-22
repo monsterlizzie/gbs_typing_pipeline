@@ -1,5 +1,5 @@
 
-# GBS Pipeline
+# GBS Typing Pipeline
 
 This repository contains a fully integrated pipeline for whole-genome sequencing (WGS) analysis of *Streptococcus agalactiae* (Group B Streptococcus, GBS).  
 It performs **quality control (QC)** and **genomic typing** in a single Nextflow pipeline run. Output includes a consolidated `summary.csv` covering all QC and typing results.
@@ -19,7 +19,7 @@ The result is a **modular**, **portable**, and **scalable** WGS workflow tailore
 
 ## Features
 
-The GBS Pipeline includes:
+The GBS Typing Pipeline includes:
 
 ### 🔬 Quality Control (QC)
 | Step             | Tool(s) Used        | Description |
