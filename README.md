@@ -44,7 +44,7 @@ The GBS Typing Pipeline includes:
 
 ---
 
-## 📦 Output Overview
+## Output Overview
 
 ```bash
 output/
@@ -67,7 +67,7 @@ output/
 ├── summary.csv                                # Combined summary: QC + typing per sample
 ```
 
-## 📘 Typing Output Descriptions
+## Typing Output Descriptions
 
 The pipeline produces detailed output files under `output/typer/`. See full descriptions in the original [GBS-Typer documentation](https://github.com/sanger-bentley-group/GBS-Typer-sanger-nf#outputs), [Report columns details](https://docs.google.com/spreadsheets/d/1R5FFvACC3a6KCKkTiluhTj492-4cCe74HcCoklqX-X0/edit?gid=0#gid=0) including:
 
@@ -81,7 +81,7 @@ The pipeline produces detailed output files under `output/typer/`. See full desc
 
 ---
 
-## 🔧 Key Parameters
+## Key Parameters
 
 | Parameter | Description | Default |
 |----------|-------------|---------|
@@ -92,7 +92,7 @@ The pipeline produces detailed output files under `output/typer/`. See full desc
 
 ---
 
-## ✅ Default QC Thresholds
+## Default QC Thresholds
 
 | Metric | Value |
 |--------|-------|
@@ -106,7 +106,7 @@ The pipeline produces detailed output files under `output/typer/`. See full desc
 
 ---
 
-## 🧪 Typing Thresholds
+## Typing Thresholds
 
 | Task | Parameter | Default |
 |------|-----------|---------|
@@ -143,7 +143,7 @@ Add `--run_pbptyper` and `--pbp_contig "output/assemblies/*.fasta"` if you want 
 
 ---
 
-## 🧱 Requirements
+## Requirements
 
 - [Nextflow](https://www.nextflow.io/) >= 22.04
 - Docker or Singularity
@@ -151,18 +151,18 @@ Add `--run_pbptyper` and `--pbp_contig "output/assemblies/*.fasta"` if you want 
 
 ---
 
-## 🧾 License
+## License
 
 GNU General Public License v3.0
 
 ---
-# 📚 Citations & Credits
+# Citations & Credits
 
 This pipeline incorporates code, tools, and databases from numerous open-source sources. Below is a detailed breakdown of each component and its associated license or citation.
 
 ---
 
-## 🔧 Tools & Software
+## Tools & Software
 
 ### **Nextflow**
 - **Citation**: Di Tommaso et al., 2017. *Nextflow enables reproducible computational workflows*. *Nat Biotechnol* 35, 316–319.
@@ -214,7 +214,7 @@ This pipeline incorporates code, tools, and databases from numerous open-source 
 
 ---
 
-## 📦 Databases
+## Databases
 
 ### **GBS Serotype Database**
 - **Source**: GBS-SBG repository, commit [5e26992](https://github.com/swainechen/GBS-SBG/blob/5e26992d658b6fea3d3485ea5851141042405e23/GBS-SBG.fasta)
@@ -243,7 +243,7 @@ This pipeline incorporates code, tools, and databases from numerous open-source 
 
 ---
 
-## 🧠 Credit Acknowledgements
+## Credit Acknowledgements
 
 - QC design adapted from: [Global PneumoSeq (GPS) Pipeline](https://github.com/GlobalPneumoSeq/gps-pipeline)
 - Typing modules adapted from: [GBS-Typer-sanger-nf](https://github.com/sanger-bentley-group/GBS-Typer-sanger-nf)
