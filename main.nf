@@ -462,7 +462,7 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
     // Barrier for overall report
     if (!params.skip_qc) {
         done_ch    = GENERATE_SAMPLE_REPORT.out.collect()
-        qc_glob_ch = done_ch.map { "${params.output}/sample_reports/*_report.csv" }
+        qc_glob_ch = done_ch.map { "${params.output}/qc_reports/*_qc.csv" }
     } else {
         // If QC was skipped, create a dummy channel so downstream logic still works
         qc_glob_ch = Channel.value('NONE')

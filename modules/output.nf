@@ -4,17 +4,17 @@ process GENERATE_SAMPLE_REPORT {
 
     tag "$sample_id"
 
-    publishDir "${params.output}/sample_reports", mode: 'copy'
+    publishDir "${params.output}/qc_reports", mode: 'copy'
 
     input:
     tuple val(sample_id), path("${sample_id}_process_report_?.csv")
 
     output:
-    path "${sample_id}_report.csv", emit: report
+    path "${sample_id}_qc.csv", emit: report
 
     script:
     """
-    generate_sample_report.py "$sample_id" "${sample_id}_report.csv" ${sample_id}_process_report_*.csv
+    generate_sample_report.py "$sample_id" "${sample_id}_qc.csv" ${sample_id}_process_report_*.csv
     """
 }
 
