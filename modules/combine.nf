@@ -8,7 +8,7 @@ process combine_results {
     path version 
 
     output:
-    path("${pair_id}_id_combined_output.txt") optional true
+    path("${pair_id}_id_combined_output.txt"), optional: true
 
     """
     combine_results.py combine_all \
