@@ -290,7 +290,7 @@ def update_GBS_Res_var(gene_name, seq_diffs, bin_res_arr):
     if seq_diffs:
         bin_res_arr[gene_name + '_SNP'] = ','.join(seq_diffs)
     else:
-        bin_res_arr[gene_name + '_SNP'] = '*'
+        bin_res_arr[gene_name + '_SNP'] = 'neg'
 
 
 def update_drug_res_col_dict(gene_name, seq_diffs, drugRes_Col, geneToClass):
