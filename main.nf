@@ -11,8 +11,8 @@ include { srst2_for_res_typing; split_target_RES_seq_from_sam_file; split_target
 include { res_typer } from './modules/res_typer.nf'
 include { surface_typer } from './modules/surface_typer.nf'
 include { getmlst_for_srst2; srst2_for_mlst; get_mlst_allele_and_pileup} from './modules/mlst.nf'
-include { get_pbp_genes; get_pbp_alleles } from './modules/pbp_typer.nf'
-include { finalise_sero_res_results; finalise_surface_typer_results; finalise_pbp_existing_allele_results; combine_results } from './modules/combine.nf'
+include { pbp_typer_srst2 } from './modules/pbp_typer_srst2.nf'
+include { finalise_sero_res_results; finalise_surface_typer_results; combine_results } from './modules/combine.nf'
 include { get_version } from './modules/version.nf'
 
 // this utility process to ensure 'databases/' exists
@@ -324,35 +324,26 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
             status
             srst2_results
     }
+   if (params.run_pbptyper) {
 
-    workflow PBP1A {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS1A-1', file(params.gbs_blactam_1A_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
-    }
+    pbp_typer_srst2(
+        OVERALL_QC_PASSED_READS_ch,
+        file(params.gbs_blactam_db, checkIfExists: true),
+        file(params.gbs_blactam_1A_db, checkIfExists: true),
+        file(params.gbs_blactam_2B_db, checkIfExists: true),
+        file(params.gbs_blactam_2X_db, checkIfExists: true),
+        params.pbptyper_min_coverage,
+        params.pbptyper_max_divergence
+    )
 
-    workflow PBP2B {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS2B-1', file(params.gbs_blactam_2B_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
-    }
-
-    workflow PBP2X {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS2X-1', file(params.gbs_blactam_2X_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
+    pbp_typer_srst2.out.pbp_out
+        .map { pair_id, allele_file -> allele_file }
+        .collectFile(
+            name: file("${params.output}/${params.existing_pbp_alleles_out}"),
+            keepHeader: true,
+            skip: 1,
+            sort: true
+        )
     }
 
     if (params.run_sero_res){
@@ -404,35 +395,7 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
             .collectFile(name: file("${params.output}/${params.surface_protein_variants_out}"), keepHeader: true)
     }
 
-    if (params.run_pbptyper) {
-        if (!params.pbp_contig) {
-        println("Please specify contigs with --pbp_contig.")
-        println("Print help with --pbp_contig")
-        System.exit(1)
-    }
 
-    contig_paths = Channel
-        .fromPath(params.pbp_contig, checkIfExists: true)
-        .map { file -> tuple(file.baseName, file) }
-
-    get_pbp_genes(
-        contig_paths,
-        file(params.gbs_blactam_db, checkIfExists: true),
-        params.pbp_frac_align_threshold,
-        params.pbp_frac_identity_threshold
-    )
-
-    PBP1A(get_pbp_genes.out)
-    PBP2B(get_pbp_genes.out)
-    PBP2X(get_pbp_genes.out)
-
-    PBP1A.out
-        .concat(PBP2B.out, PBP2X.out)
-        .set { PBP_all }
-
-    PBP_all
-        .collectFile(name: file("${params.output}/${params.existing_pbp_alleles_out}"), keepHeader: true, sort: true)
-    }
 
     if (params.run_sero_res & params.run_surfacetyper & params.run_mlst){
         get_version()
