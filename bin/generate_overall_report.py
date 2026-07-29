@@ -10,6 +10,7 @@ from itertools import chain
 from typing import List
 
 
+
 # ---------- Columns to include ----------
 COLUMNS_BY_CATEGORY = {
     'IDENTIFICATION': ['Sample_ID'],
@@ -48,6 +49,142 @@ PBP_COLUMNS = [
     'pbp2B',
     'pbp2X'
 ]
+
+# ---------- Grouped summary columns ----------
+#
+# Presence columns contain pos/neg calls.
+# Variant columns contain mutation calls such as S81L.
+
+GROUP_DEFINITIONS = {
+    'Erythromycin_Determinant': {
+        'presence': [
+            'ermA',
+            'ermB',
+            'ermT',
+            'mefA',
+            'msrD'
+        ],
+        'variants': []
+    },
+
+    'Clindamycin_Determinant': {
+        'presence': [
+            'ermA',
+            'ermB',
+            'ermT',
+            'lnuB',
+            'lnuC',
+            'lsaC',
+            'lsaE'
+        ],
+        'variants': []
+    },
+
+    'Tetracycline_Determinant': {
+        'presence': [
+            'tetB',
+            'tetL',
+            'tetM',
+            'tetW',
+            'tetO',
+            'tetS',
+            'tetO32O',
+            'tetOW',
+            'tetOW32O',
+            'tetOW32OWO',
+            'tetOWO',
+            'tetSM',
+            'tetW32O'
+        ],
+        'variants': []
+    },
+
+    'Chloramphenicol_Determinant': {
+        'presence': [
+            'cat(pc194)',
+            'catQ'
+        ],
+        'variants': []
+    },
+
+    'Gentamicin_HLGR_Determinant': {
+        'presence': [
+            "aac(6')-aph(2'')"
+        ],
+        'variants': []
+    },
+
+    'Fluoroquinolone_Determinant': {
+        'presence': [],
+        'variants': [
+            'gyrA_SNP',
+            'parC_SNP'
+        ]
+    },
+
+    'Other_Resistance_Determinant': {
+        'presence': [
+            'ant(6-Ia)',
+            "aph(3'-III)",
+            'aadE'
+        ],
+        'variants': [
+            '23S1_SNP',
+            '23S3_SNP'
+        ]
+    },
+
+    'Alpha_like_Protein': {
+        'presence': [
+            'alp1',
+            'alp2/3',
+            'alpha',
+            'rib'
+        ],
+        'variants': []
+    },
+
+    'Pilus_Island': {
+        'presence': [
+            'PI1',
+            'PI2A1',
+            'PI2A2',
+            'PI2B'
+        ],
+        'variants': []
+    },
+
+    'Serine_rich_Repeat_Protein': {
+        'presence': [
+            'srr1',
+            'srr2'
+        ],
+        'variants': []
+    },
+
+    'Hypervirulence_Determinant': {
+        'presence': [
+            'hvgA'
+        ],
+        'variants': []
+    }
+}
+
+
+GROUPED_COLUMNS = list(
+    GROUP_DEFINITIONS.keys()
+)
+
+
+DETAILED_COLUMNS_TO_DROP = sorted({
+    column
+    for definition in GROUP_DEFINITIONS.values()
+    for column in (
+        definition['presence']
+        + definition['variants']
+    )
+})
+
 
 VALID_ID = re.compile(r'^[A-Za-z0-9_.:-]+$')
 
@@ -189,6 +326,86 @@ def ensure_columns(
         if c not in df.columns:
             df[c] = pd.NA
 
+def collapse_determinant_group(
+    row: pd.Series,
+    presence_columns: List[str],
+    variant_columns: List[str]
+) -> str:
+    """
+    Combine detected determinants into one semicolon-separated value.
+
+    Presence example:
+        ermB=pos, mefA=pos
+        -> ermB;mefA
+
+    Variant example:
+        gyrA_SNP=S81L, parC_SNP=S79F
+        -> gyrA:S81L;parC:S79F
+    """
+
+    detected = []
+    observed_values = []
+
+    # Handle gene presence/absence calls
+    for column in presence_columns:
+        if column not in row.index:
+            continue
+
+        value = str(row[column]).strip()
+        observed_values.append(value)
+
+        if value.lower() == 'pos':
+            detected.append(column)
+
+    # Handle resistance-associated mutations
+    for column in variant_columns:
+        if column not in row.index:
+            continue
+
+        value = str(row[column]).strip()
+        observed_values.append(value)
+
+        if value.lower() not in {
+            '',
+            'na',
+            'nan',
+            'none',
+            'neg',
+            'module failure'
+        }:
+            determinant_name = column.replace(
+                '_SNP',
+                ''
+            )
+
+            detected.append(
+                f'{determinant_name}:{value}'
+            )
+
+    # Report every positive determinant found
+    if detected:
+        return ';'.join(detected)
+
+    normalised_values = {
+        value.upper()
+        for value in observed_values
+    }
+
+    # No positive call, but at least one required result failed
+    if 'MODULE FAILURE' in normalised_values:
+        return 'MODULE FAILURE'
+
+    # Used principally for samples that did not pass QC
+    if not normalised_values or normalised_values.issubset({
+        '',
+        'NA',
+        'NAN',
+        'NONE'
+    }):
+        return 'NA'
+
+    # Module completed and nothing was detected
+    return 'neg'
 
 def read_pbp(path_or_none: str) -> pd.DataFrame:
     """
@@ -419,10 +636,10 @@ def main():
     )
 
     # Insert pbp1A, pbp2B and pbp2X immediately before
-    # typer_pipeline_version
-    if 'typer_pipeline_version' in typer_cols_in_order:
+    # pipeline_version
+    if 'pipeline_version' in typer_cols_in_order:
         version_index = typer_cols_in_order.index(
-            'typer_pipeline_version'
+            'pipeline_version'
         )
 
         ordered_typer_cols = (
@@ -496,7 +713,7 @@ def main():
             '23S3_SNP',
             'gyrA_SNP',
             'parC_SNP',
-            'typer_pipeline_version',
+            'pipeline_version',
             'cps_type',
             'pbp1A',
             'pbp2B',
@@ -542,7 +759,135 @@ def main():
     # All remaining empty values become NA
     out = out.fillna('NA')
 
-    # 6) Write final summary
+        # 6) Collapse detailed resistance and surface-protein
+    # presence/variant columns into grouped summary columns
+    for output_column, definition in GROUP_DEFINITIONS.items():
+        out[output_column] = out.apply(
+            collapse_determinant_group,
+            axis=1,
+            presence_columns=definition['presence'],
+            variant_columns=definition['variants']
+        )
+
+    # Remove detailed gene-by-gene columns from summary.csv only.
+    # The original detailed typer files remain unchanged.
+    source_columns_present = [
+        column
+        for column in DETAILED_COLUMNS_TO_DROP
+        if column in out.columns
+    ]
+
+    if source_columns_present:
+        out.drop(
+            columns=source_columns_present,
+            inplace=True
+        )
+
+        # 7) Set the final summary report structure
+    report_prefix = [
+        'Sample_ID',
+        'Read_QC',
+        'Assembly_QC',
+        'Mapping_QC',
+        'Taxonomy_QC',
+        'Overall_QC',
+        'Bases',
+        'Contigs#',
+        'Assembly_Length',
+        'Seq_Depth',
+        'Ref_Cov_%',
+        'Het-SNP#',
+        'S.agalactiae_%',
+        'Top_Non-agalactiae_Species',
+        'Top_Non-agalactiae_Species_%',
+        'cps_type',
+        'ST',
+        'adhP',
+        'pheS',
+        'atr',
+        'glnA',
+        'sdhA',
+        'glcK',
+        'tkt'
+    ]
+
+    resistance_columns = [
+        'Erythromycin_Determinant',
+        'Clindamycin_Determinant',
+        'Tetracycline_Determinant',
+        'Chloramphenicol_Determinant',
+        'Gentamicin_HLGR_Determinant',
+        'Fluoroquinolone_Determinant',
+        'Other_Resistance_Determinant'
+    ]
+
+    surface_protein_columns = [
+        'Alpha_like_Protein',
+        'Pilus_Island',
+        'Serine_rich_Repeat_Protein',
+        'Hypervirulence_Determinant'
+    ]
+
+    report_suffix = [
+        'pbp1A',
+        'pbp2B',
+        'pbp2X',
+        'pipeline_version'
+    ]
+
+    preferred_columns = (
+        report_prefix
+        + resistance_columns
+        + surface_protein_columns
+        + report_suffix
+    )
+
+    # Preserve unexpected/new columns rather than silently losing them.
+    # Place them before the PBP and pipeline-version columns.
+    known_without_suffix = (
+        report_prefix
+        + resistance_columns
+        + surface_protein_columns
+    )
+
+    extra_columns = [
+        column
+        for column in out.columns
+        if column not in set(
+            preferred_columns
+        )
+    ]
+
+    final_report_columns = (
+        [
+            column
+            for column in known_without_suffix
+            if column in out.columns
+        ]
+        + extra_columns
+        + [
+            column
+            for column in report_suffix
+            if column in out.columns
+        ]
+    )
+
+    # Guarantee uniqueness while preserving order
+    seen_columns = set()
+    final_report_columns = [
+        column
+        for column in final_report_columns
+        if not (
+            column in seen_columns
+            or seen_columns.add(column)
+        )
+    ]
+
+    out = out.reindex(
+        columns=final_report_columns
+    )
+
+    # 8) Write final summary
     out.to_csv(
         out_csv,
         index=False
