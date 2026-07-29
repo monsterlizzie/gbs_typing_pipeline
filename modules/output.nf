@@ -27,6 +27,7 @@ process GENERATE_OVERALL_REPORT {
   input:
   val qc_glob
   val typer_path
+  val pbp_path
 
   output:
   path "summary.csv"
@@ -39,6 +40,7 @@ process GENERATE_OVERALL_REPORT {
   python3 ${projectDir}/bin/generate_overall_report.py \
       "${qc_glob}" \
       "${typer_path}" \
+      "${pbp_path}" \
       summary.csv
   """
 }

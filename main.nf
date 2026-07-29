@@ -15,6 +15,7 @@ include { get_pbp_genes; get_pbp_alleles } from './modules/pbp_typer.nf'
 include { finalise_sero_res_results; finalise_surface_typer_results; finalise_pbp_existing_allele_results; combine_results } from './modules/combine.nf'
 include { get_version } from './modules/version.nf'
 
+
 // this utility process to ensure 'databases/' exists
 process INIT_DB_DIR {
     label 'bash_container'
@@ -326,34 +327,78 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
     }
 
     workflow PBP1A {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS1A-1', file(params.gbs_blactam_1A_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
+    take:
+    pbp_typer_output
+
+    main:
+    get_pbp_alleles(
+        pbp_typer_output,
+        'GBS1A-1',
+        file(params.gbs_blactam_1A_db, checkIfExists: true)
+    )
+
+    get_pbp_alleles.out.new_pbp.subscribe {
+        it -> it.copyTo(file("${params.output}"))
     }
 
-    workflow PBP2B {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS2B-1', file(params.gbs_blactam_2B_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
+    finalise_pbp_existing_allele_results(
+        get_pbp_alleles.out.existing_pbp,
+        file(params.config, checkIfExists: true)
+    )
+
+    emit:
+    finalised_pbp = finalise_pbp_existing_allele_results.out
+}
+
+
+workflow PBP2B {
+    take:
+    pbp_typer_output
+
+    main:
+    get_pbp_alleles(
+        pbp_typer_output,
+        'GBS2B-1',
+        file(params.gbs_blactam_2B_db, checkIfExists: true)
+    )
+
+    get_pbp_alleles.out.new_pbp.subscribe {
+        it -> it.copyTo(file("${params.output}"))
     }
 
-    workflow PBP2X {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS2X-1', file(params.gbs_blactam_2X_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
+    finalise_pbp_existing_allele_results(
+        get_pbp_alleles.out.existing_pbp,
+        file(params.config, checkIfExists: true)
+    )
+
+    emit:
+    finalised_pbp = finalise_pbp_existing_allele_results.out
+}
+
+
+workflow PBP2X {
+    take:
+    pbp_typer_output
+
+    main:
+    get_pbp_alleles(
+        pbp_typer_output,
+        'GBS2X-1',
+        file(params.gbs_blactam_2X_db, checkIfExists: true)
+    )
+
+    get_pbp_alleles.out.new_pbp.subscribe {
+        it -> it.copyTo(file("${params.output}"))
     }
+
+    finalise_pbp_existing_allele_results(
+        get_pbp_alleles.out.existing_pbp,
+        file(params.config, checkIfExists: true)
+    )
+
+    emit:
+    finalised_pbp = finalise_pbp_existing_allele_results.out
+}
 
     if (params.run_sero_res){
         serotyping(OVERALL_QC_PASSED_PAIRED_READS_ch, file(params.sero_gene_db, checkIfExists: true), params.serotyper_min_read_depth)
@@ -405,35 +450,43 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
     }
 
     if (params.run_pbptyper) {
-        if (!params.pbp_contig) {
-        println("Please specify contigs with --pbp_contig.")
-        println("Print help with --pbp_contig")
-        System.exit(1)
+
+        if (params.skip_qc) {
+            error "PBP typing requires QC-passed assemblies and cannot run with --skip_qc true."
+        }
+
+        get_pbp_genes(
+            OVERALL_QC_PASSED_ASSEMBLIES_ch,
+            file(params.gbs_blactam_db, checkIfExists: true),
+            params.pbp_frac_align_threshold,
+            params.pbp_frac_identity_threshold
+        )
+
+        PBP1A(get_pbp_genes.out)
+        PBP2B(get_pbp_genes.out)
+        PBP2X(get_pbp_genes.out)
+
+        // This is the existing combined PBP file:
+        // existing_pbp_alleles.txt
+        pbp_path_ch = PBP1A.out.finalised_pbp
+            .concat(
+                PBP2B.out.finalised_pbp,
+                PBP2X.out.finalised_pbp
+            )
+            .collectFile(
+                name: file(
+                    "${params.output}/${params.existing_pbp_alleles_out}"
+                ),
+                keepHeader: true,
+                sort: true
+            )
+            .map { it.toString() }
+
+    } else {
+
+        pbp_path_ch = Channel.value('NONE')
     }
-
-    contig_paths = Channel
-        .fromPath(params.pbp_contig, checkIfExists: true)
-        .map { file -> tuple(file.baseName, file) }
-
-    get_pbp_genes(
-        contig_paths,
-        file(params.gbs_blactam_db, checkIfExists: true),
-        params.pbp_frac_align_threshold,
-        params.pbp_frac_identity_threshold
-    )
-
-    PBP1A(get_pbp_genes.out)
-    PBP2B(get_pbp_genes.out)
-    PBP2X(get_pbp_genes.out)
-
-    PBP1A.out
-        .concat(PBP2B.out, PBP2X.out)
-        .set { PBP_all }
-
-    PBP_all
-        .collectFile(name: file("${params.output}/${params.existing_pbp_alleles_out}"), keepHeader: true, sort: true)
-    }
-
+    
     if (params.run_sero_res & params.run_surfacetyper & params.run_mlst){
         get_version()
         version_ch = get_version.out
@@ -477,8 +530,10 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
     // Typer path (or NONE if typer wasn’t run)
     typer_path_ch = typer_csv_ch.ifEmpty { Channel.value('NONE') }.map { it.toString() }
 
+   
+
     // Fire the overall report (still runs, even if typer_path_ch == 'NONE')
-    GENERATE_OVERALL_REPORT(qc_glob_ch, typer_path_ch)
+    GENERATE_OVERALL_REPORT(qc_glob_ch, typer_path_ch, pbp_path_ch)
 
 
 
