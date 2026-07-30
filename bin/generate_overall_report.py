@@ -82,26 +82,16 @@ GROUP_DEFINITIONS = {
 
     'Tetracycline_Determinant': {
         'presence': [
-            'tetB',
             'tetL',
             'tetM',
-            'tetW',
             'tetO',
-            'tetS',
-            'tetO32O',
-            'tetOW',
-            'tetOW32O',
-            'tetOW32OWO',
-            'tetOWO',
-            'tetSM',
-            'tetW32O'
+            'tetT',
         ],
         'variants': []
     },
 
     'Chloramphenicol_Determinant': {
         'presence': [
-            'cat(pc194)',
             'catQ'
         ],
         'variants': []
@@ -122,16 +112,19 @@ GROUP_DEFINITIONS = {
         ]
     },
 
-    'Other_Resistance_Determinant': {
+    "Vancomycin_Determinant": {
+    "presence": [
+        "vanG"
+    ],
+    "variants": []
+    },
+
+    'Other_Aminoglycoside_Determinant': {
         'presence': [
             'ant(6-Ia)',
-            "aph(3'-III)",
-            'aadE'
+            "aph(3'-III)"
         ],
-        'variants': [
-            '23S1_SNP',
-            '23S3_SNP'
-        ]
+        'variants': []
     },
 
     'Alpha_like_Protein': {
@@ -184,6 +177,43 @@ DETAILED_COLUMNS_TO_DROP = sorted({
         + definition['variants']
     )
 })
+
+# Detailed columns to hide from summary.csv but NOT include
+
+# in grouped determinant columns.
+
+ADDITIONAL_COLUMNS_TO_DROP = [
+
+    'aadE',
+
+    'cat(pc194)',
+
+    'tetB',
+
+    'tetW',
+
+    'tetS',
+
+    'tetO32O',
+
+    'tetOW',
+
+    'tetOW32O',
+
+    'tetOW32OWO',
+
+    'tetOWO',
+
+    'tetSM',
+
+    'tetW32O',
+
+    '23S1_SNP',
+
+    '23S3_SNP'
+
+]
+
 
 
 VALID_ID = re.compile(r'^[A-Za-z0-9_.:-]+$')
@@ -759,7 +789,7 @@ def main():
     # All remaining empty values become NA
     out = out.fillna('NA')
 
-        # 6) Collapse detailed resistance and surface-protein
+    # 6) Collapse detailed resistance and surface-protein
     # presence/variant columns into grouped summary columns
     for output_column, definition in GROUP_DEFINITIONS.items():
         out[output_column] = out.apply(
@@ -773,7 +803,10 @@ def main():
     # The original detailed typer files remain unchanged.
     source_columns_present = [
         column
-        for column in DETAILED_COLUMNS_TO_DROP
+        for column in (
+            DETAILED_COLUMNS_TO_DROP 
+            + ADDITIONAL_COLUMNS_TO_DROP
+        )
         if column in out.columns
     ]
 
@@ -783,7 +816,7 @@ def main():
             inplace=True
         )
 
-        # 7) Set the final summary report structure
+    # 7) Set the final summary report structure
     report_prefix = [
         'Sample_ID',
         'Read_QC',
@@ -818,7 +851,8 @@ def main():
         'Chloramphenicol_Determinant',
         'Gentamicin_HLGR_Determinant',
         'Fluoroquinolone_Determinant',
-        'Other_Resistance_Determinant'
+        'Vancomycin_Determinant',
+        'Other_Aminoglycoside_Determinant'
     ]
 
     surface_protein_columns = [
