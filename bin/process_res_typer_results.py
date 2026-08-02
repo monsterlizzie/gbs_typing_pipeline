@@ -26,6 +26,7 @@ drugRes_Col = {
     'TET': 'neg',
     'EC': 'neg',
     'FQ': 'neg',
+    "VAN": "neg",
     'OTHER': 'neg',
 }
 

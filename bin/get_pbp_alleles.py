@@ -12,6 +12,20 @@ def write_content(content, output_file):
         for item in content:
             out.write(item)
 
+def get_pbp_call_from_output_prefix(output_prefix):
+    if 'GBS1A-1' in output_prefix:
+        return 'NEW||GBS_1A'
+
+    if 'GBS2B-1' in output_prefix:
+        return 'NEW||GBS_2B'
+
+    if 'GBS2X-1' in output_prefix:
+        return 'NEW||GBS_2X'
+
+    raise ValueError(
+        f'Cannot determine PBP type from output prefix: '
+        f'{output_prefix}'
+    )
 
 def get_imperfect_allele(best_blast_hits, query_seq_data):
     seq_lengths = query_seq_data.calculate_seq_length()
@@ -52,12 +66,46 @@ def main():
     imperfect_allele = get_imperfect_allele(best_blast_hits, seq_data)
 
     # Write data
+    
     if identical_allele:
-        write_content(identical_allele, args.output + '_existing_allele.txt')
+        write_content(
+            identical_allele,
+            args.output + '_existing_allele.txt'
+        )
+
     elif imperfect_allele:
-        write_content(imperfect_allele, args.output + '_new_allele.faa')
+        # Preserve the novel amino-acid sequence
+        write_content(
+            imperfect_allele,
+            args.output + '_new_allele.faa'
+        )
+
+        # Also create a machine-readable PBP result so the
+        # downstream report records this as NEW.
+        pbp_call = get_pbp_call_from_output_prefix(
+            args.output
+        )
+
+        contig = next(iter(best_blast_hits))
+
+        new_result = [
+            'Contig\tPBP_allele\n'
+            + contig
+            + '\t'
+            + pbp_call
+            + '\n'
+        ]
+
+        write_content(
+            new_result,
+            args.output + '_existing_allele.txt'
+        )
+
     else:
-        print('Error: No hits found.')
+        print(
+            'Warning: No qualifying PBP allele hit found.',
+            file=sys.stderr
+        )
 
 
 if __name__ == "__main__":
