@@ -594,21 +594,200 @@ def read_pbp(path_or_none: str) -> pd.DataFrame:
 
     return pbp_wide[output_columns]
 
+def read_pbp_status(
+    target_status_path: str,
+    allele_status_path: str
+) -> pd.DataFrame:
+    """
+    Read PBP diagnostic status files and return one row per sample.
+
+    Target-status file format:
+        Sample_ID    GBS1A-1=TARGET_FOUND
+        Sample_ID    GBS2B-1=PBP_NOT_DETECTED
+        Sample_ID    GBS2X-1=TARGET_FOUND
+
+    Allele-status file format:
+        Sample_ID    GBS1A-1    EXISTING_ALLELE
+        Sample_ID    GBS2B-1    PARTIAL_PBP_GENE
+        Sample_ID    GBS2X-1    NO_BLAST_HIT
+
+    User-facing PBP values:
+        NEW_ALLELE          -> new
+        PARTIAL_PBP_GENE    -> PARTIAL_PBP_GENE
+        PBP_NOT_DETECTED    -> PBP_NOT_DETECTED
+        NO_BLAST_HIT        -> NO_BLAST_HIT
+        NO_ALLELE_MATCH     -> NO_ALLELE_MATCH
+        MODULE_FAILURE      -> MODULE FAILURE
+
+    EXISTING_ALLELE and TARGET_FOUND do not replace the actual
+    allele number obtained from existing_pbp_alleles.txt.
+    """
+
+    gene_map = {
+        "GBS1A-1": "pbp1A",
+        "GBS2B-1": "pbp2B",
+        "GBS2X-1": "pbp2X"
+    }
+
+    output_columns = [
+        "Sample_ID",
+        "pbp1A",
+        "pbp2B",
+        "pbp2X"
+    ]
+
+    records = {}
+
+    def set_status(sample_id, pbp_gene, status):
+        """
+        Store a status for one sample/PBP.
+
+        Allele-process statuses are applied after target statuses,
+        so they naturally override TARGET_FOUND information.
+        """
+
+        if sample_id not in records:
+            records[sample_id] = {}
+
+        records[sample_id][pbp_gene] = status
+
+    # ----------------------------------------------------------
+    # 1. Upstream PBP target status
+    #
+    # Used particularly for cases where no BED was generated and
+    # get_pbp_alleles therefore never ran.
+    # ----------------------------------------------------------
+
+    if (
+        target_status_path != "NONE"
+        and os.path.exists(target_status_path)
+    ):
+        with open(target_status_path) as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+
+                if not line:
+                    continue
+
+                fields = line.split("\t")
+
+                if len(fields) != 2:
+                    continue
+
+                sample_id = fields[0].strip()
+                target_info = fields[1].strip()
+
+                if "=" not in target_info:
+                    continue
+
+                pbp_type, status = target_info.split("=", 1)
+
+                pbp_gene = gene_map.get(
+                    pbp_type.strip()
+                )
+
+                if pbp_gene is None:
+                    continue
+
+                status = status.strip()
+
+                # TARGET_FOUND is not itself a final PBP call.
+                if status == "PBP_NOT_DETECTED":
+                    set_status(
+                        sample_id,
+                        pbp_gene,
+                        "PBP_NOT_DETECTED"
+                    )
+
+    # ----------------------------------------------------------
+    # 2. PBP allele-process status
+    # ----------------------------------------------------------
+
+    if (
+        allele_status_path != "NONE"
+        and os.path.exists(allele_status_path)
+    ):
+        with open(allele_status_path) as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+
+                if not line:
+                    continue
+
+                fields = line.split("\t")
+
+                if len(fields) != 3:
+                    continue
+
+                sample_id = fields[0].strip()
+                pbp_type = fields[1].strip()
+                status = fields[2].strip()
+
+                pbp_gene = gene_map.get(
+                    pbp_type
+                )
+
+                if pbp_gene is None:
+                    continue
+
+                status_map = {
+                    "NEW_ALLELE": "new",
+                    "PARTIAL_PBP_GENE": "PARTIAL_PBP_GENE",
+                    "PBP_NOT_DETECTED": "PBP_NOT_DETECTED",
+                    "NO_BLAST_HIT": "NO_BLAST_HIT",
+                    "NO_ALLELE_MATCH": "NO_ALLELE_MATCH",
+                    "MODULE_FAILURE": "MODULE FAILURE"
+                }
+
+                # EXISTING_ALLELE is deliberately ignored here.
+                # The actual allele number is obtained from
+                # existing_pbp_alleles.txt.
+                if status in status_map:
+                    set_status(
+                        sample_id,
+                        pbp_gene,
+                        status_map[status]
+                    )
+
+    if not records:
+        return pd.DataFrame(
+            columns=output_columns
+        )
+
+    rows = []
+
+    for sample_id, pbp_calls in records.items():
+        rows.append({
+            "Sample_ID": sample_id,
+            "pbp1A": pbp_calls.get("pbp1A", pd.NA),
+            "pbp2B": pbp_calls.get("pbp2B", pd.NA),
+            "pbp2X": pbp_calls.get("pbp2X", pd.NA)
+        })
+
+    return pd.DataFrame(
+        rows,
+        columns=output_columns
+    )
+
 
 def main():
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 7:
         sys.exit(
             "Usage: generate_overall_report.py "
             "<qc_glob> "
             "<typer_path_or_NONE> "
             "<pbp_path_or_NONE> "
+            "<pbp_target_status_path_or_NONE> "
+            "<pbp_allele_status_path_or_NONE> "
             "<output_csv>"
         )
 
     qc_glob = sys.argv[1]
     typer_path = sys.argv[2]
     pbp_path = sys.argv[3]
-    out_csv = sys.argv[4]
+    pbp_target_status_path = sys.argv[4]
+    pbp_allele_status_path = sys.argv[5]
+    out_csv = sys.argv[6]
 
     # 1) Load data
     qc_all = read_qc_stack(
@@ -623,6 +802,51 @@ def main():
         pbp_path
     )
 
+    # Read diagnostic PBP statuses
+    pbp_status_df = read_pbp_status(
+        pbp_target_status_path,
+        pbp_allele_status_path
+    )
+
+    # ----------------------------------------------------------
+    # Overlay diagnostic PBP statuses onto missing allele calls.
+    #
+    # Successful allele numbers always take precedence.
+    # Status values are only used where the normal PBP call
+    # is missing.
+    # ----------------------------------------------------------
+    if not pbp_status_df.empty:
+
+        pbp_df = pd.merge(
+            pbp_df,
+            pbp_status_df,
+            on='Sample_ID',
+            how='outer',
+            suffixes=('', '_status')
+        )
+
+        for pbp_gene in PBP_COLUMNS:
+
+            status_col = f'{pbp_gene}_status'
+
+            if status_col not in pbp_df.columns:
+                continue
+
+            pbp_df[pbp_gene] = (
+                pbp_df[pbp_gene]
+                .fillna(pbp_df[status_col])
+            )
+
+            pbp_df.drop(
+                columns=[status_col],
+                inplace=True
+            )
+
+    ensure_columns(
+        pbp_df,
+        PBP_COLUMNS
+    )
+
     # 2) Preserve typer columns in their original order
     typer_cols_in_order = [
         c
@@ -630,7 +854,8 @@ def main():
         if c != 'Sample_ID'
     ]
 
-    # PBP columns are added separately
+    # PBP columns are added separately from the dedicated
+    # PBP results/status files.
     typer_cols_in_order = [
         c
         for c in typer_cols_in_order

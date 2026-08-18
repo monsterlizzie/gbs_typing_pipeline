@@ -348,6 +348,7 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
 
     emit:
     finalised_pbp = finalise_pbp_existing_allele_results.out
+    pbp_status = get_pbp_alleles.out.pbp_status
 }
 
 
@@ -373,6 +374,7 @@ workflow PBP2B {
 
     emit:
     finalised_pbp = finalise_pbp_existing_allele_results.out
+    pbp_status = get_pbp_alleles.out.pbp_status
 }
 
 
@@ -398,6 +400,7 @@ workflow PBP2X {
 
     emit:
     finalised_pbp = finalise_pbp_existing_allele_results.out
+    pbp_status = get_pbp_alleles.out.pbp_status
 }
 
     if (params.run_sero_res){
@@ -462,12 +465,11 @@ workflow PBP2X {
             params.pbp_frac_identity_threshold
         )
 
-        PBP1A(get_pbp_genes.out)
-        PBP2B(get_pbp_genes.out)
-        PBP2X(get_pbp_genes.out)
+        PBP1A(get_pbp_genes.out.pbp_beds)
+        PBP2B(get_pbp_genes.out.pbp_beds)
+        PBP2X(get_pbp_genes.out.pbp_beds)
 
-        // This is the existing combined PBP file:
-        // existing_pbp_alleles.txt
+        // Existing combined PBP allele file
         pbp_path_ch = PBP1A.out.finalised_pbp
             .concat(
                 PBP2B.out.finalised_pbp,
@@ -482,9 +484,43 @@ workflow PBP2X {
             )
             .map { it.toString() }
 
+        // NEW: upstream target-detection statuses
+        pbp_target_status_path_ch = get_pbp_genes.out.pbp_target_status
+            .map { pair_id, status_file ->
+                def lines = status_file.text
+                    .readLines()
+                    .findAll { it.trim() }
+
+                lines.collect { line ->
+                    "${pair_id}\t${line}\n"
+                }.join('')
+            }
+            .collectFile(
+                name: file("${params.output}/pbp_target_status.txt"),
+                sort: true
+            )
+            .map { it.toString() }
+
+        // NEW: final status from each allele-typing process
+        pbp_allele_status_path_ch = PBP1A.out.pbp_status
+            .concat(
+                PBP2B.out.pbp_status,
+                PBP2X.out.pbp_status
+            )
+            .map { pair_id, pbp_type, status_file ->
+                "${pair_id}\t${pbp_type}\t${status_file.text.trim()}\n"
+            }
+            .collectFile(
+                name: file("${params.output}/pbp_allele_status.txt"),
+                sort: true
+            )
+            .map { it.toString() }
+
     } else {
 
         pbp_path_ch = Channel.value('NONE')
+        pbp_target_status_path_ch = Channel.value('NONE')
+        pbp_allele_status_path_ch = Channel.value('NONE')
     }
     
     if (params.run_sero_res & params.run_surfacetyper & params.run_mlst){
@@ -515,7 +551,7 @@ workflow PBP2X {
     // Barrier for overall report
     if (!params.skip_qc) {
         done_ch    = GENERATE_SAMPLE_REPORT.out.collect()
-        qc_glob_ch = done_ch.map { "${params.output}/qc_reports/*_qc.csv" }
+        qc_glob_ch = done_ch.map {"${file(params.output).toAbsolutePath()}/qc_reports/*_qc.csv"}
     } else {
         // If QC was skipped, create a dummy channel so downstream logic still works
         qc_glob_ch = Channel.value('NONE')
@@ -533,7 +569,13 @@ workflow PBP2X {
    
 
     // Fire the overall report (still runs, even if typer_path_ch == 'NONE')
-    GENERATE_OVERALL_REPORT(qc_glob_ch, typer_path_ch, pbp_path_ch)
+    GENERATE_OVERALL_REPORT(
+    qc_glob_ch,
+    typer_path_ch,
+    pbp_path_ch,
+    pbp_target_status_path_ch,
+    pbp_allele_status_path_ch
+)
 
 
 
