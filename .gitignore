@@ -6,6 +6,9 @@ work
 .nextflow
 .nextflow.log*
 debug.log
+docs
+tests
+
 
 # Databases, data, output
 databases

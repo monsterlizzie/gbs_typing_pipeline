@@ -37,6 +37,16 @@ workflow {
 
     main:
 
+    // These legacy switches were removed in v2.0 because QC and PBP typing
+    // are mandatory core stages. Reject them explicitly rather than silently
+    // ignoring an old command line.
+    if (params.containsKey('skip_qc')) {
+        error "--skip_qc has been removed: QC is mandatory in v2.0."
+    }
+    if (params.containsKey('run_pbptyper')) {
+        error "--run_pbptyper has been removed: PBP typing is mandatory in v2.0."
+    }
+
     INIT_DB_DIR()
     db_dir_ch = INIT_DB_DIR.out.db_dir
 
@@ -64,9 +74,8 @@ workflow {
         }
 
     // ----------------------------------------------------------
-    // QC SECTION — can be skipped using --skip_qc true
+    // QC SECTION — mandatory in v2.0
     // ----------------------------------------------------------
-    if (!params.skip_qc) {
     // Basic input files validation
     // Output into Channel FILE_VALIDATION.out.result
     FILE_VALIDATION(RAW_READS_ONE_ch)
@@ -193,30 +202,6 @@ workflow {
             [sample_id, report_paths]
         }
     )
-} // <--- end skip_qc block
-
-// ----------------------------------------------------------
-// Fallback if QC is skipped — use reads directly
-// ----------------------------------------------------------
-if (params.skip_qc) {
-    log.info "Skipping QC - using raw reads directly for typer modules."
-    OVERALL_QC_PASSED_PAIRED_READS_ch = Channel.fromFilePairs(
-        "$params.reads/*_{,R}{1,2}{,_001}.{fq,fastq}{,.gz}",
-        checkIfExists: true
-    ).map { id, reads -> tuple(id, reads) }
-}
-
- // Guard clause — allow QC-only runs but prevent 'nothing to do'
-if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !params.run_pbptyper) {
-    if (params.skip_qc) {
-        println(" Error: all typer modules disabled and QC skipped — nothing to run.")
-        System.exit(1)
-    } else {
-        log.info " Running QC-only mode (no typing modules enabled)."
-    }
-    Channel.fromFilePairs( params.reads, checkIfExists: true )
-            .set { read_pairs_ch }
-}
 
    
 
@@ -452,18 +437,13 @@ workflow PBP2X {
             .collectFile(name: file("${params.output}/${params.surface_protein_variants_out}"), keepHeader: true)
     }
 
-    if (params.run_pbptyper) {
-
-        if (params.skip_qc) {
-            error "PBP typing requires QC-passed assemblies and cannot run with --skip_qc true."
-        }
-
-        get_pbp_genes(
+    // PBP typing is a mandatory core module and receives QC-passed assemblies.
+    get_pbp_genes(
             OVERALL_QC_PASSED_ASSEMBLIES_ch,
             file(params.gbs_blactam_db, checkIfExists: true),
             params.pbp_frac_align_threshold,
             params.pbp_frac_identity_threshold
-        )
+    )
 
         PBP1A(get_pbp_genes.out.pbp_beds)
         PBP2B(get_pbp_genes.out.pbp_beds)
@@ -516,13 +496,7 @@ workflow PBP2X {
             )
             .map { it.toString() }
 
-    } else {
 
-        pbp_path_ch = Channel.value('NONE')
-        pbp_target_status_path_ch = Channel.value('NONE')
-        pbp_allele_status_path_ch = Channel.value('NONE')
-    }
-    
     if (params.run_sero_res & params.run_surfacetyper & params.run_mlst){
         get_version()
         version_ch = get_version.out
@@ -548,20 +522,9 @@ workflow PBP2X {
         )
     }
 
-    // Barrier for overall report
-    if (!params.skip_qc) {
-        done_ch    = GENERATE_SAMPLE_REPORT.out.collect()
-        qc_glob_ch = done_ch.map {"${file(params.output).toAbsolutePath()}/qc_reports/*_qc.csv"}
-    } else {
-        // If QC was skipped, create a dummy channel so downstream logic still works
-        qc_glob_ch = Channel.value('NONE')
-    }
-   
-
-    // Fallback for typer channel (QC-only run)
-    if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !params.run_pbptyper) {
-    typer_csv_ch = Channel.value('NONE')
-    }
+    // QC reports are always available because QC is mandatory.
+    done_ch    = GENERATE_SAMPLE_REPORT.out.collect()
+    qc_glob_ch = done_ch.map {"${file(params.output).toAbsolutePath()}/qc_reports/*_qc.csv"}
 
     // Typer path (or NONE if typer wasn’t run)
     typer_path_ch = typer_csv_ch.ifEmpty { Channel.value('NONE') }.map { it.toString() }

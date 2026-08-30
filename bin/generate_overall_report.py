@@ -992,6 +992,21 @@ def main():
             .fillna('MODULE FAILURE')
         )
 
+        # A QC-passed isolate with no SRST2 serotype call is
+        # unresolved, rather than unavailable. Existing calls,
+        # including NT for below-threshold depth, are preserved.
+        if 'cps_type' in out.columns:
+            out.loc[
+                mask,
+                'cps_type'
+            ] = (
+                out.loc[
+                    mask,
+                    'cps_type'
+                ]
+                .fillna('Unresolved')
+            )
+
         # When PBP typing ran, every PASS sample should have
         # one call for each PBP gene.
         #
