@@ -302,6 +302,27 @@ metrics, serotype, MLST, grouped resistance determinants, grouped
 surface-protein calls, PBP alleles and pipeline version.
 
 
+### Summary report and detailed typing report
+
+The pipeline provides two reports for different purposes:
+
+| Report | Intended use | Contents |
+|---|---|---|
+| `output/summary.csv` | Routine review, surveillance and downstream analysis | QC results, grouped antimicrobial-resistance determinants, serotype, ST, grouped surface-protein calls, PBP1A/PBP2B/PBP2X allele calls and pipeline version |
+| `output/typer/gbs_typer_report.txt` | Detailed typing report including Serotype, ST, the seven MLST loci, individual resistance-gene incidence, selected GBS-specific resistance variants, surface-protein incidence and pipeline version |
+
+The detailed typing report and corresponding detailed module reports is generated when serotype/resistance typing, MLST
+and surface-protein typing are all enabled. Its individual gene columns retain
+more detail than the grouped positive/negative determinant columns in
+`summary.csv`. PBP results are not part of `gbs_typer_report.txt`; they are
+reported in `summary.csv`, `typer/existing_pbp_alleles.txt`, the PBP status
+files and any novel PBP FASTA output.
+
+Column descriptions for the detailed typing report are available in the
+[GBS-Typer report-column reference](https://docs.google.com/spreadsheets/d/1R5FFvACC3a6KCKkTiluhTj492-4cCe74HcCoklqX-X0/edit?usp=sharing).
+In that reference, use rows where the `category` column is
+`in_silico_analysis`.
+
 ## Interpreting QC and serotype values
 
 Typing is attempted only for samples with `Overall_QC=PASS`.
@@ -309,13 +330,9 @@ Typing is attempted only for samples with `Overall_QC=PASS`.
 | Value | Interpretation |
 |---|---|
 | A named serotype, for example `Ia`, `Ib`, `II` or `III` | A reportable in-silico serotype was assigned |
-| `NT` | Serotype-associated evidence was below the configured serotyping depth threshold |
+| `NT` | SRST2 detected depth was below the configured serotyping depth threshold ( default : 10x) |
 | `Unresolved` | Overall QC passed, but SRST2 did not produce a valid reportable serotype/fullgenes call |
 | `NA` | Serotyping was unavailable because overall QC failed or the input reads were unusable |
-
-`Unresolved` does not by itself establish that an isolate is
-non-encapsulated. Biological interpretation may require examination of the
-capsule locus and phenotypic confirmation.
 
 Corrupted inputs are reported explicitly in `Overall_QC`, for example
 `READ_ONE_CORRUPTED` or `READ_TWO_CORRUPTED`, and their unavailable typing
