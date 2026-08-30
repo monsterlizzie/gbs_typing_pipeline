@@ -1,7 +1,7 @@
 # GBS Typing Pipeline
 
 The GBS Typing Pipeline is a Nextflow workflow for quality control and genomic
-typing of paired-end Illumina reads from *Streptococcus agalactiae* (Group B
+typing of paired-end raw reads from *Streptococcus agalactiae* (Group B
 Streptococcus; GBS).
 
 The workflow combines a GBS-focused QC pipeline, adapted from the Global
@@ -11,7 +11,7 @@ analysis: samples must pass overall QC before entering the typing modules.
 
 For a routine analysis, a user only needs to:
 
-1. Put each pair of Illumina read files in `input/`.
+1. Put each pair of raw read files in `input/`.
 2. Start Docker.
 3. Run `nextflow run main.nf -profile standard` from the repository directory.
 4. Open `output/summary.csv` when the run finishes.
