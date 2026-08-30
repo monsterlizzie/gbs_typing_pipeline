@@ -15,6 +15,7 @@ include { get_pbp_genes; get_pbp_alleles } from './modules/pbp_typer.nf'
 include { finalise_sero_res_results; finalise_surface_typer_results; finalise_pbp_existing_allele_results; combine_results } from './modules/combine.nf'
 include { get_version } from './modules/version.nf'
 
+
 // this utility process to ensure 'databases/' exists
 process INIT_DB_DIR {
     label 'bash_container'
@@ -35,6 +36,16 @@ process INIT_DB_DIR {
 workflow {
 
     main:
+
+    // These legacy switches were removed in v2.0 because QC and PBP typing
+    // are mandatory core stages. Reject them explicitly rather than silently
+    // ignoring an old command line.
+    if (params.containsKey('skip_qc')) {
+        error "--skip_qc has been removed: QC is mandatory in v2.0."
+    }
+    if (params.containsKey('run_pbptyper')) {
+        error "--run_pbptyper has been removed: PBP typing is mandatory in v2.0."
+    }
 
     INIT_DB_DIR()
     db_dir_ch = INIT_DB_DIR.out.db_dir
@@ -63,9 +74,8 @@ workflow {
         }
 
     // ----------------------------------------------------------
-    // QC SECTION — can be skipped using --skip_qc true
+    // QC SECTION — mandatory in v2.0
     // ----------------------------------------------------------
-    if (!params.skip_qc) {
     // Basic input files validation
     // Output into Channel FILE_VALIDATION.out.result
     FILE_VALIDATION(RAW_READS_ONE_ch)
@@ -192,30 +202,6 @@ workflow {
             [sample_id, report_paths]
         }
     )
-} // <--- end skip_qc block
-
-// ----------------------------------------------------------
-// Fallback if QC is skipped — use reads directly
-// ----------------------------------------------------------
-if (params.skip_qc) {
-    log.info "Skipping QC - using raw reads directly for typer modules."
-    OVERALL_QC_PASSED_PAIRED_READS_ch = Channel.fromFilePairs(
-        "$params.reads/*_{,R}{1,2}{,_001}.{fq,fastq}{,.gz}",
-        checkIfExists: true
-    ).map { id, reads -> tuple(id, reads) }
-}
-
- // Guard clause — allow QC-only runs but prevent 'nothing to do'
-if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !params.run_pbptyper) {
-    if (params.skip_qc) {
-        println(" Error: all typer modules disabled and QC skipped — nothing to run.")
-        System.exit(1)
-    } else {
-        log.info " Running QC-only mode (no typing modules enabled)."
-    }
-    Channel.fromFilePairs( params.reads, checkIfExists: true )
-            .set { read_pairs_ch }
-}
 
    
 
@@ -326,34 +312,81 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
     }
 
     workflow PBP1A {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS1A-1', file(params.gbs_blactam_1A_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
+    take:
+    pbp_typer_output
+
+    main:
+    get_pbp_alleles(
+        pbp_typer_output,
+        'GBS1A-1',
+        file(params.gbs_blactam_1A_db, checkIfExists: true)
+    )
+
+    get_pbp_alleles.out.new_pbp.subscribe {
+        it -> it.copyTo(file("${params.output}"))
     }
 
-    workflow PBP2B {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS2B-1', file(params.gbs_blactam_2B_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
+    finalise_pbp_existing_allele_results(
+        get_pbp_alleles.out.existing_pbp,
+        file(params.config, checkIfExists: true)
+    )
+
+    emit:
+    finalised_pbp = finalise_pbp_existing_allele_results.out
+    pbp_status = get_pbp_alleles.out.pbp_status
+}
+
+
+workflow PBP2B {
+    take:
+    pbp_typer_output
+
+    main:
+    get_pbp_alleles(
+        pbp_typer_output,
+        'GBS2B-1',
+        file(params.gbs_blactam_2B_db, checkIfExists: true)
+    )
+
+    get_pbp_alleles.out.new_pbp.subscribe {
+        it -> it.copyTo(file("${params.output}"))
     }
 
-    workflow PBP2X {
-        take: pbp_typer_output
-        main:
-            get_pbp_alleles(pbp_typer_output, 'GBS2X-1', file(params.gbs_blactam_2X_db, checkIfExists: true))
-            get_pbp_alleles.out.new_pbp.subscribe { it -> it.copyTo(file("${params.output}")) }
-            finalise_pbp_existing_allele_results(get_pbp_alleles.out.existing_pbp, file(params.config, checkIfExists: true))
-        emit:
-            finalise_pbp_existing_allele_results.out
+    finalise_pbp_existing_allele_results(
+        get_pbp_alleles.out.existing_pbp,
+        file(params.config, checkIfExists: true)
+    )
+
+    emit:
+    finalised_pbp = finalise_pbp_existing_allele_results.out
+    pbp_status = get_pbp_alleles.out.pbp_status
+}
+
+
+workflow PBP2X {
+    take:
+    pbp_typer_output
+
+    main:
+    get_pbp_alleles(
+        pbp_typer_output,
+        'GBS2X-1',
+        file(params.gbs_blactam_2X_db, checkIfExists: true)
+    )
+
+    get_pbp_alleles.out.new_pbp.subscribe {
+        it -> it.copyTo(file("${params.output}"))
     }
+
+    finalise_pbp_existing_allele_results(
+        get_pbp_alleles.out.existing_pbp,
+        file(params.config, checkIfExists: true)
+    )
+
+    emit:
+    finalised_pbp = finalise_pbp_existing_allele_results.out
+    pbp_status = get_pbp_alleles.out.pbp_status
+}
 
     if (params.run_sero_res){
         serotyping(OVERALL_QC_PASSED_PAIRED_READS_ch, file(params.sero_gene_db, checkIfExists: true), params.serotyper_min_read_depth)
@@ -404,35 +437,65 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
             .collectFile(name: file("${params.output}/${params.surface_protein_variants_out}"), keepHeader: true)
     }
 
-    if (params.run_pbptyper) {
-        if (!params.pbp_contig) {
-        println("Please specify contigs with --pbp_contig.")
-        println("Print help with --pbp_contig")
-        System.exit(1)
-    }
-
-    contig_paths = Channel
-        .fromPath(params.pbp_contig, checkIfExists: true)
-        .map { file -> tuple(file.baseName, file) }
-
+    // PBP typing is a mandatory core module and receives QC-passed assemblies.
     get_pbp_genes(
-        contig_paths,
-        file(params.gbs_blactam_db, checkIfExists: true),
-        params.pbp_frac_align_threshold,
-        params.pbp_frac_identity_threshold
+            OVERALL_QC_PASSED_ASSEMBLIES_ch,
+            file(params.gbs_blactam_db, checkIfExists: true),
+            params.pbp_frac_align_threshold,
+            params.pbp_frac_identity_threshold
     )
 
-    PBP1A(get_pbp_genes.out)
-    PBP2B(get_pbp_genes.out)
-    PBP2X(get_pbp_genes.out)
+        PBP1A(get_pbp_genes.out.pbp_beds)
+        PBP2B(get_pbp_genes.out.pbp_beds)
+        PBP2X(get_pbp_genes.out.pbp_beds)
 
-    PBP1A.out
-        .concat(PBP2B.out, PBP2X.out)
-        .set { PBP_all }
+        // Existing combined PBP allele file
+        pbp_path_ch = PBP1A.out.finalised_pbp
+            .concat(
+                PBP2B.out.finalised_pbp,
+                PBP2X.out.finalised_pbp
+            )
+            .collectFile(
+                name: file(
+                    "${params.output}/${params.existing_pbp_alleles_out}"
+                ),
+                keepHeader: true,
+                sort: true
+            )
+            .map { it.toString() }
 
-    PBP_all
-        .collectFile(name: file("${params.output}/${params.existing_pbp_alleles_out}"), keepHeader: true, sort: true)
-    }
+        // NEW: upstream target-detection statuses
+        pbp_target_status_path_ch = get_pbp_genes.out.pbp_target_status
+            .map { pair_id, status_file ->
+                def lines = status_file.text
+                    .readLines()
+                    .findAll { it.trim() }
+
+                lines.collect { line ->
+                    "${pair_id}\t${line}\n"
+                }.join('')
+            }
+            .collectFile(
+                name: file("${params.output}/pbp_target_status.txt"),
+                sort: true
+            )
+            .map { it.toString() }
+
+        // NEW: final status from each allele-typing process
+        pbp_allele_status_path_ch = PBP1A.out.pbp_status
+            .concat(
+                PBP2B.out.pbp_status,
+                PBP2X.out.pbp_status
+            )
+            .map { pair_id, pbp_type, status_file ->
+                "${pair_id}\t${pbp_type}\t${status_file.text.trim()}\n"
+            }
+            .collectFile(
+                name: file("${params.output}/pbp_allele_status.txt"),
+                sort: true
+            )
+            .map { it.toString() }
+
 
     if (params.run_sero_res & params.run_surfacetyper & params.run_mlst){
         get_version()
@@ -459,26 +522,23 @@ if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !par
         )
     }
 
-    // Barrier for overall report
-    if (!params.skip_qc) {
-        done_ch    = GENERATE_SAMPLE_REPORT.out.collect()
-        qc_glob_ch = done_ch.map { "${params.output}/qc_reports/*_qc.csv" }
-    } else {
-        // If QC was skipped, create a dummy channel so downstream logic still works
-        qc_glob_ch = Channel.value('NONE')
-    }
-   
-
-    // Fallback for typer channel (QC-only run)
-    if (!params.run_sero_res && !params.run_surfacetyper && !params.run_mlst && !params.run_pbptyper) {
-    typer_csv_ch = Channel.value('NONE')
-    }
+    // QC reports are always available because QC is mandatory.
+    done_ch    = GENERATE_SAMPLE_REPORT.out.collect()
+    qc_glob_ch = done_ch.map {"${file(params.output).toAbsolutePath()}/qc_reports/*_qc.csv"}
 
     // Typer path (or NONE if typer wasn’t run)
     typer_path_ch = typer_csv_ch.ifEmpty { Channel.value('NONE') }.map { it.toString() }
 
+   
+
     // Fire the overall report (still runs, even if typer_path_ch == 'NONE')
-    GENERATE_OVERALL_REPORT(qc_glob_ch, typer_path_ch)
+    GENERATE_OVERALL_REPORT(
+    qc_glob_ch,
+    typer_path_ch,
+    pbp_path_ch,
+    pbp_target_status_path_ch,
+    pbp_allele_status_path_ch
+)
 
 
 

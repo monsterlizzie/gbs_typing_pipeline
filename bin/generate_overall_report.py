@@ -1,119 +1,1178 @@
 #!/usr/bin/env python3
 
-import sys, os, re, glob
+import sys
+import os
+import re
+import glob
 import pandas as pd
+
 from itertools import chain
 from typing import List
 
-# ---------- Columns in include ----------
+
+
+# ---------- Columns to include ----------
 COLUMNS_BY_CATEGORY = {
     'IDENTIFICATION': ['Sample_ID'],
-    'QC': ['Read_QC', 'Assembly_QC', 'Mapping_QC', 'Taxonomy_QC', 'Overall_QC'],
-    'READ': ['Bases'],
-    'ASSEMBLY': ['Contigs#', 'Assembly_Length', 'Seq_Depth'],
-    'MAPPING': ['Ref_Cov_%', 'Het-SNP#'],
-    'TAXONOMY': ['S.agalactiae_%', 'Top_Non-agalactiae_Species', 'Top_Non-agalactiae_Species_%'],
+    'QC': [
+        'Read_QC',
+        'Assembly_QC',
+        'Mapping_QC',
+        'Taxonomy_QC',
+        'Overall_QC'
+    ],
+    'READ': [
+        'Bases'
+    ],
+    'ASSEMBLY': [
+        'Contigs#',
+        'Assembly_Length',
+        'Seq_Depth'
+    ],
+    'MAPPING': [
+        'Ref_Cov_%',
+        'Het-SNP#'
+    ],
+    'TAXONOMY': [
+        'S.agalactiae_%',
+        'Top_Non-agalactiae_Species',
+        'Top_Non-agalactiae_Species_%'
+    ],
 }
-QC_FIXED = list(chain.from_iterable(COLUMNS_BY_CATEGORY.values()))
+
+QC_FIXED = list(
+    chain.from_iterable(COLUMNS_BY_CATEGORY.values())
+)
+
+PBP_COLUMNS = [
+    'pbp1A',
+    'pbp2B',
+    'pbp2X'
+]
+
+# ---------- Grouped summary columns ----------
+#
+# Presence columns contain pos/neg calls.
+# Variant columns contain mutation calls such as S81L.
+
+GROUP_DEFINITIONS = {
+    'Erythromycin_Determinant': {
+        'presence': [
+            'ermA',
+            'ermB',
+            'ermT',
+            'mefA',
+            'msrD'
+        ],
+        'variants': []
+    },
+
+    'Clindamycin_Determinant': {
+        'presence': [
+            'ermA',
+            'ermB',
+            'ermT',
+            'lnuB',
+            'lnuC',
+            'lsaC',
+            'lsaE'
+        ],
+        'variants': []
+    },
+
+    'Tetracycline_Determinant': {
+        'presence': [
+            'tetL',
+            'tetM',
+            'tetO',
+            'tetT',
+        ],
+        'variants': []
+    },
+
+    'Chloramphenicol_Determinant': {
+        'presence': [
+            'catQ'
+        ],
+        'variants': []
+    },
+
+    'Gentamicin_HLGR_Determinant': {
+        'presence': [
+            "aac(6')-aph(2'')"
+        ],
+        'variants': []
+    },
+
+    'Fluoroquinolone_Determinant': {
+        'presence': [],
+        'variants': [
+            'gyrA_SNP',
+            'parC_SNP'
+        ]
+    },
+
+    "Vancomycin_Determinant": {
+    "presence": [
+        "vanG"
+    ],
+    "variants": []
+    },
+
+    'Other_Aminoglycoside_Determinant': {
+        'presence': [
+            'ant(6-Ia)',
+            "aph(3'-III)"
+        ],
+        'variants': []
+    },
+
+    'Alpha_like_Protein': {
+        'presence': [
+            'alp1',
+            'alp2/3',
+            'alpha',
+            'rib'
+        ],
+        'variants': []
+    },
+
+    'Pilus_Island': {
+        'presence': [
+            'PI1',
+            'PI2A1',
+            'PI2A2',
+            'PI2B'
+        ],
+        'variants': []
+    },
+
+    'Serine_rich_Repeat_Protein': {
+        'presence': [
+            'srr1',
+            'srr2'
+        ],
+        'variants': []
+    },
+
+    'Hypervirulence_Determinant': {
+        'presence': [
+            'hvgA'
+        ],
+        'variants': []
+    }
+}
+
+
+GROUPED_COLUMNS = list(
+    GROUP_DEFINITIONS.keys()
+)
+
+
+DETAILED_COLUMNS_TO_DROP = sorted({
+    column
+    for definition in GROUP_DEFINITIONS.values()
+    for column in (
+        definition['presence']
+        + definition['variants']
+    )
+})
+
+# Detailed columns to hide from summary.csv but NOT include
+
+# in grouped determinant columns.
+
+ADDITIONAL_COLUMNS_TO_DROP = [
+
+    'aadE',
+
+    'cat(pc194)',
+
+    'tetB',
+
+    'tetW',
+
+    'tetS',
+
+    'tetO32O',
+
+    'tetOW',
+
+    'tetOW32O',
+
+    'tetOW32OWO',
+
+    'tetOWO',
+
+    'tetSM',
+
+    'tetW32O',
+
+    '23S1_SNP',
+
+    '23S3_SNP'
+
+]
+
+
 
 VALID_ID = re.compile(r'^[A-Za-z0-9_.:-]+$')
 
+
 def infer_sample_id_from_path(p: str) -> str:
-    parent = os.path.basename(os.path.dirname(p))
+    parent = os.path.basename(
+        os.path.dirname(p)
+    )
+
     if not VALID_ID.match(parent):
-        stem = os.path.splitext(os.path.basename(p))[0]
-        parent = re.sub(r'_report$', '', stem)
+        stem = os.path.splitext(
+            os.path.basename(p)
+        )[0]
+
+        parent = re.sub(
+            r'_report$',
+            '',
+            stem
+        )
+
     return parent
 
-def normalise_id_to_sample_id(df: pd.DataFrame, want: str = 'Sample_ID') -> pd.DataFrame:
+
+def normalise_id_to_sample_id(
+    df: pd.DataFrame,
+    want: str = 'Sample_ID'
+) -> pd.DataFrame:
+
     if want in df.columns:
         return df
-    for cand in ['sample_id','Sample_id','sample','Sample','isolate','Isolate','id','ID']:
+
+    for cand in [
+        'sample_id',
+        'Sample_id',
+        'sample',
+        'Sample',
+        'isolate',
+        'Isolate',
+        'id',
+        'ID'
+    ]:
         if cand in df.columns:
-            return df.rename(columns={cand: want})
+            return df.rename(
+                columns={cand: want}
+            )
+
     return df
 
+
 def read_qc_stack(qc_glob: str) -> pd.DataFrame:
-    paths = sorted(glob.glob(qc_glob))
+    paths = sorted(
+        glob.glob(qc_glob)
+    )
+
     if not paths:
-        sys.exit(f"[combine] No QC files matched: {qc_glob}")
+        sys.exit(
+            f"[combine] No QC files matched: {qc_glob}"
+        )
+
     dfs = []
+
     for p in paths:
-        df = pd.read_csv(p, dtype=str)
-        df = normalise_id_to_sample_id(df, 'Sample_ID')
+        df = pd.read_csv(
+            p,
+            dtype=str
+        )
+
+        df = normalise_id_to_sample_id(
+            df,
+            'Sample_ID'
+        )
+
         if 'Sample_ID' not in df.columns:
-            df.insert(0, 'Sample_ID', infer_sample_id_from_path(p))
-        df.replace("", pd.NA, inplace=True)
+            df.insert(
+                0,
+                'Sample_ID',
+                infer_sample_id_from_path(p)
+            )
+
+        df.replace(
+            "",
+            pd.NA,
+            inplace=True
+        )
+
         dfs.append(df)
-    return pd.concat(dfs, ignore_index=True)
+
+    return pd.concat(
+        dfs,
+        ignore_index=True
+    )
+
 
 def read_typer(path_or_none: str) -> pd.DataFrame:
     if path_or_none == 'NONE':
-        return pd.DataFrame(columns=['Sample_ID'])
+        return pd.DataFrame(
+            columns=['Sample_ID']
+        )
+
     try:
-        df = pd.read_csv(path_or_none, sep='\t', dtype=str)
+        df = pd.read_csv(
+            path_or_none,
+            sep='\t',
+            dtype=str
+        )
     except Exception:
-        df = pd.read_csv(path_or_none, sep=',', dtype=str)
-    df = normalise_id_to_sample_id(df, 'Sample_ID')
+        df = pd.read_csv(
+            path_or_none,
+            sep=',',
+            dtype=str
+        )
+
+    df = normalise_id_to_sample_id(
+        df,
+        'Sample_ID'
+    )
+
     if 'Sample_ID' not in df.columns:
-        sys.exit("[combine] Typer table missing a sample id column (e.g. Sample_ID)")
-    df.replace("", pd.NA, inplace=True)
+        sys.exit(
+            "[combine] Typer table missing a sample ID column "
+            "(for example, Sample_ID)"
+        )
+
+    df.replace(
+        "",
+        pd.NA,
+        inplace=True
+    )
+
     return df
 
-def ensure_columns(df: pd.DataFrame, cols: List[str]) -> None:
+
+def ensure_columns(
+    df: pd.DataFrame,
+    cols: List[str]
+) -> None:
+
     for c in cols:
         if c not in df.columns:
             df[c] = pd.NA
 
-def main():
-    if len(sys.argv) != 4:
-        sys.exit("Usage: generate_overall_report.py <qc_glob> <typer_path_or_NONE> <output_csv>")
+def collapse_determinant_group(
+    row: pd.Series,
+    presence_columns: List[str],
+    variant_columns: List[str]
+) -> str:
+    """
+    Combine detected determinants into one semicolon-separated value.
 
-    qc_glob, typer_path, out_csv = sys.argv[1], sys.argv[2], sys.argv[3]
+    Presence example:
+        ermB=pos, mefA=pos
+        -> ermB;mefA
+
+    Variant example:
+        gyrA_SNP=S81L, parC_SNP=S79F
+        -> gyrA:S81L;parC:S79F
+    """
+
+    detected = []
+    observed_values = []
+
+    # Handle gene presence/absence calls
+    for column in presence_columns:
+        if column not in row.index:
+            continue
+
+        value = str(row[column]).strip()
+        observed_values.append(value)
+
+        if value.lower() == 'pos':
+            detected.append(column)
+
+    # Handle resistance-associated mutations
+    for column in variant_columns:
+        if column not in row.index:
+            continue
+
+        value = str(row[column]).strip()
+        observed_values.append(value)
+
+        if value.lower() not in {
+            '',
+            'na',
+            'nan',
+            'none',
+            'neg',
+            'module failure'
+        }:
+            determinant_name = column.replace(
+                '_SNP',
+                ''
+            )
+
+            detected.append(
+                f'{determinant_name}:{value}'
+            )
+
+    # Report every positive determinant found
+    if detected:
+        return ';'.join(detected)
+
+    normalised_values = {
+        value.upper()
+        for value in observed_values
+    }
+
+    # No positive call, but at least one required result failed
+    if 'MODULE FAILURE' in normalised_values:
+        return 'MODULE FAILURE'
+
+    # Used principally for samples that did not pass QC
+    if not normalised_values or normalised_values.issubset({
+        '',
+        'NA',
+        'NAN',
+        'NONE'
+    }):
+        return 'NA'
+
+    # Module completed and nothing was detected
+    return 'neg'
+
+def read_pbp(path_or_none: str) -> pd.DataFrame:
+    """
+    Read the combined PBP call table and convert it from long format:
+
+        Sample_ID    PBP_gene    PBP_call
+        SRR9088888   pbp1A       3
+        SRR9088888   pbp2B       1
+        SRR9088888   pbp2X       4
+
+    into wide format:
+
+        Sample_ID    pbp1A    pbp2B    pbp2X
+        SRR9088888   3        1        4
+    """
+
+    output_columns = [
+        'Sample_ID',
+        'pbp1A',
+        'pbp2B',
+        'pbp2X'
+    ]
+
+    if path_or_none == 'NONE':
+        return pd.DataFrame(
+            columns=output_columns
+        )
+
+    if not os.path.exists(path_or_none):
+        sys.exit(
+            f"[combine] PBP results file does not exist: "
+            f"{path_or_none}"
+        )
+
+    try:
+        df = pd.read_csv(
+            path_or_none,
+            sep='\t',
+            dtype=str
+        )
+    except Exception:
+        df = pd.read_csv(
+            path_or_none,
+            sep=',',
+            dtype=str
+        )
+
+    df = normalise_id_to_sample_id(
+        df,
+        'Sample_ID'
+    )
+
+    df.replace(
+        "",
+        pd.NA,
+        inplace=True
+    )
+
+    if 'Sample_ID' not in df.columns:
+        sys.exit(
+            "[combine] PBP table missing a sample ID column "
+            "(for example, Sample_ID or Sample_id)"
+        )
+
+    required_columns = {
+    'PBP_allele'
+    }
+
+    missing_columns = required_columns.difference(df.columns)
+
+    if missing_columns:
+        sys.exit(
+            "[combine] PBP table missing required columns: "
+            + ", ".join(sorted(missing_columns))
+        )
+
+    # Extract gene name from entries such as:
+    # 3||GBS_1A
+    # 1||GBS_2B
+    # 4||GBS_2X
+
+    df["PBP_gene"] = (
+        df["PBP_allele"]
+        .str.extract(r"GBS_(1A|2B|2X)")
+        .iloc[:, 0]
+        .map({
+            "1A": "pbp1A",
+            "2B": "pbp2B",
+            "2X": "pbp2X"
+        })
+    )
+
+    # Extract allele number (everything before ||)
+
+    df["PBP_call"] = (
+        df["PBP_allele"]
+        .str.split("||", n=1, regex=False)
+        .str[0]
+    )
+
+    cleaned = df.dropna(
+        subset=[
+            "Sample_ID",
+            "PBP_gene",
+            "PBP_call"
+        ]
+    ).copy()
+
+    duplicate_calls = (
+        cleaned
+        .groupby(
+            ["Sample_ID", "PBP_gene"]
+        )["PBP_call"]
+        .nunique()
+    )
+
+    conflicting = duplicate_calls[
+        duplicate_calls > 1
+    ]
+
+    if not conflicting.empty:
+        conflicts = [
+            f"{sample}:{gene}"
+            for sample, gene in conflicting.index
+        ]
+
+        sys.exit(
+            "[combine] Conflicting PBP calls detected for: "
+            + ", ".join(conflicts)
+        )
+
+    cleaned = cleaned.drop_duplicates(
+        subset=[
+            "Sample_ID",
+            "PBP_gene",
+            "PBP_call"
+        ]
+    )
+
+    pbp_wide = (
+        cleaned
+        .pivot(
+            index="Sample_ID",
+            columns="PBP_gene",
+            values="PBP_call"
+        )
+        .reset_index()
+    )
+
+    pbp_wide.columns.name = None
+
+    ensure_columns(
+        pbp_wide,
+        PBP_COLUMNS
+    )
+
+    return pbp_wide[output_columns]
+
+def read_pbp_status(
+    target_status_path: str,
+    allele_status_path: str
+) -> pd.DataFrame:
+    """
+    Read PBP diagnostic status files and return one row per sample.
+
+    Target-status file format:
+        Sample_ID    GBS1A-1=TARGET_FOUND
+        Sample_ID    GBS2B-1=PBP_NOT_DETECTED
+        Sample_ID    GBS2X-1=TARGET_FOUND
+
+    Allele-status file format:
+        Sample_ID    GBS1A-1    EXISTING_ALLELE
+        Sample_ID    GBS2B-1    PARTIAL_PBP_GENE
+        Sample_ID    GBS2X-1    NO_BLAST_HIT
+
+    User-facing PBP values:
+        NEW_ALLELE          -> new
+        PARTIAL_PBP_GENE    -> PARTIAL_PBP_GENE
+        PBP_NOT_DETECTED    -> PBP_NOT_DETECTED
+        NO_BLAST_HIT        -> NO_BLAST_HIT
+        NO_ALLELE_MATCH     -> NO_ALLELE_MATCH
+        MODULE_FAILURE      -> MODULE FAILURE
+
+    EXISTING_ALLELE and TARGET_FOUND do not replace the actual
+    allele number obtained from existing_pbp_alleles.txt.
+    """
+
+    gene_map = {
+        "GBS1A-1": "pbp1A",
+        "GBS2B-1": "pbp2B",
+        "GBS2X-1": "pbp2X"
+    }
+
+    output_columns = [
+        "Sample_ID",
+        "pbp1A",
+        "pbp2B",
+        "pbp2X"
+    ]
+
+    records = {}
+
+    def set_status(sample_id, pbp_gene, status):
+        """
+        Store a status for one sample/PBP.
+
+        Allele-process statuses are applied after target statuses,
+        so they naturally override TARGET_FOUND information.
+        """
+
+        if sample_id not in records:
+            records[sample_id] = {}
+
+        records[sample_id][pbp_gene] = status
+
+    # ----------------------------------------------------------
+    # 1. Upstream PBP target status
+    #
+    # Used particularly for cases where no BED was generated and
+    # get_pbp_alleles therefore never ran.
+    # ----------------------------------------------------------
+
+    if (
+        target_status_path != "NONE"
+        and os.path.exists(target_status_path)
+    ):
+        with open(target_status_path) as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+
+                if not line:
+                    continue
+
+                fields = line.split("\t")
+
+                if len(fields) != 2:
+                    continue
+
+                sample_id = fields[0].strip()
+                target_info = fields[1].strip()
+
+                if "=" not in target_info:
+                    continue
+
+                pbp_type, status = target_info.split("=", 1)
+
+                pbp_gene = gene_map.get(
+                    pbp_type.strip()
+                )
+
+                if pbp_gene is None:
+                    continue
+
+                status = status.strip()
+
+                # TARGET_FOUND is not itself a final PBP call.
+                if status == "PBP_NOT_DETECTED":
+                    set_status(
+                        sample_id,
+                        pbp_gene,
+                        "PBP_NOT_DETECTED"
+                    )
+
+    # ----------------------------------------------------------
+    # 2. PBP allele-process status
+    # ----------------------------------------------------------
+
+    if (
+        allele_status_path != "NONE"
+        and os.path.exists(allele_status_path)
+    ):
+        with open(allele_status_path) as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+
+                if not line:
+                    continue
+
+                fields = line.split("\t")
+
+                if len(fields) != 3:
+                    continue
+
+                sample_id = fields[0].strip()
+                pbp_type = fields[1].strip()
+                status = fields[2].strip()
+
+                pbp_gene = gene_map.get(
+                    pbp_type
+                )
+
+                if pbp_gene is None:
+                    continue
+
+                status_map = {
+                    "NEW_ALLELE": "new",
+                    "PARTIAL_PBP_GENE": "PARTIAL_PBP_GENE",
+                    "PBP_NOT_DETECTED": "PBP_NOT_DETECTED",
+                    "NO_BLAST_HIT": "NO_BLAST_HIT",
+                    "NO_ALLELE_MATCH": "NO_ALLELE_MATCH",
+                    "MODULE_FAILURE": "MODULE FAILURE"
+                }
+
+                # EXISTING_ALLELE is deliberately ignored here.
+                # The actual allele number is obtained from
+                # existing_pbp_alleles.txt.
+                if status in status_map:
+                    set_status(
+                        sample_id,
+                        pbp_gene,
+                        status_map[status]
+                    )
+
+    if not records:
+        return pd.DataFrame(
+            columns=output_columns
+        )
+
+    rows = []
+
+    for sample_id, pbp_calls in records.items():
+        rows.append({
+            "Sample_ID": sample_id,
+            "pbp1A": pbp_calls.get("pbp1A", pd.NA),
+            "pbp2B": pbp_calls.get("pbp2B", pd.NA),
+            "pbp2X": pbp_calls.get("pbp2X", pd.NA)
+        })
+
+    return pd.DataFrame(
+        rows,
+        columns=output_columns
+    )
+
+
+def main():
+    if len(sys.argv) != 7:
+        sys.exit(
+            "Usage: generate_overall_report.py "
+            "<qc_glob> "
+            "<typer_path_or_NONE> "
+            "<pbp_path_or_NONE> "
+            "<pbp_target_status_path_or_NONE> "
+            "<pbp_allele_status_path_or_NONE> "
+            "<output_csv>"
+        )
+
+    qc_glob = sys.argv[1]
+    typer_path = sys.argv[2]
+    pbp_path = sys.argv[3]
+    pbp_target_status_path = sys.argv[4]
+    pbp_allele_status_path = sys.argv[5]
+    out_csv = sys.argv[6]
 
     # 1) Load data
-    qc_all   = read_qc_stack(qc_glob)
-    typer_df = read_typer(typer_path)
+    qc_all = read_qc_stack(
+        qc_glob
+    )
 
-    # 2) Build column order: fixed QC block + ALL typer columns (in typer file order, minus Sample_ID)
-    typer_cols_in_order = [c for c in list(typer_df.columns) if c != 'Sample_ID']
-    desired_order = QC_FIXED + typer_cols_in_order
+    typer_df = read_typer(
+        typer_path
+    )
 
-    # 3) Outer-join on Sample_ID
-    merged = pd.merge(qc_all, typer_df, on='Sample_ID', how='outer')
+    pbp_df = read_pbp(
+        pbp_path
+    )
 
-    # 4) Ensure fixed QC columns exist; select & order
-    ensure_columns(merged, QC_FIXED)
-    # Keep all columns: first QC_FIXED, then typer_cols_in_order, then any extras not yet included
-    extras = [c for c in merged.columns if c not in set(['Sample_ID'] + QC_FIXED + typer_cols_in_order)]
-    final_cols = ['Sample_ID'] + QC_FIXED[1:] + typer_cols_in_order + extras  # Sample_ID already first in QC_FIXED
-    # Guarantee uniqueness and existence
-    seen, ordered = set(), []
+    # Read diagnostic PBP statuses
+    pbp_status_df = read_pbp_status(
+        pbp_target_status_path,
+        pbp_allele_status_path
+    )
+
+    # ----------------------------------------------------------
+    # Overlay diagnostic PBP statuses onto missing allele calls.
+    #
+    # Successful allele numbers always take precedence.
+    # Status values are only used where the normal PBP call
+    # is missing.
+    # ----------------------------------------------------------
+    if not pbp_status_df.empty:
+
+        pbp_df = pd.merge(
+            pbp_df,
+            pbp_status_df,
+            on='Sample_ID',
+            how='outer',
+            suffixes=('', '_status')
+        )
+
+        for pbp_gene in PBP_COLUMNS:
+
+            status_col = f'{pbp_gene}_status'
+
+            if status_col not in pbp_df.columns:
+                continue
+
+            pbp_df[pbp_gene] = (
+                pbp_df[pbp_gene]
+                .fillna(pbp_df[status_col])
+            )
+
+            pbp_df.drop(
+                columns=[status_col],
+                inplace=True
+            )
+
+    ensure_columns(
+        pbp_df,
+        PBP_COLUMNS
+    )
+
+    # 2) Preserve typer columns in their original order
+    typer_cols_in_order = [
+        c
+        for c in list(typer_df.columns)
+        if c != 'Sample_ID'
+    ]
+
+    # PBP columns are added separately from the dedicated
+    # PBP results/status files.
+    typer_cols_in_order = [
+        c
+        for c in typer_cols_in_order
+        if c not in PBP_COLUMNS
+    ]
+
+    # 3) Outer-join QC and typer results on Sample_ID
+    merged = pd.merge(
+        qc_all,
+        typer_df,
+        on='Sample_ID',
+        how='outer'
+    )
+
+    # Add PBP results by matching Sample_ID
+    # PBP results do not create new rows in the summary
+    merged = pd.merge(
+        merged,
+        pbp_df,
+        on='Sample_ID',
+        how='left'
+    )
+
+    # 4) Ensure fixed QC and PBP columns exist
+    ensure_columns(
+        merged,
+        QC_FIXED
+    )
+
+    ensure_columns(
+        merged,
+        PBP_COLUMNS
+    )
+
+    # Insert pbp1A, pbp2B and pbp2X immediately before
+    # pipeline_version
+    if 'pipeline_version' in typer_cols_in_order:
+        version_index = typer_cols_in_order.index(
+            'pipeline_version'
+        )
+
+        ordered_typer_cols = (
+            typer_cols_in_order[:version_index]
+            + PBP_COLUMNS
+            + typer_cols_in_order[version_index:]
+        )
+    else:
+        ordered_typer_cols = (
+            typer_cols_in_order
+            + PBP_COLUMNS
+        )
+
+    # Keep any remaining columns that were not included above
+    extras = [
+        c
+        for c in merged.columns
+        if c not in set(
+            ['Sample_ID']
+            + QC_FIXED
+            + ordered_typer_cols
+        )
+    ]
+
+    final_cols = (
+        ['Sample_ID']
+        + QC_FIXED[1:]
+        + ordered_typer_cols
+        + extras
+    )
+
+    # Guarantee unique columns while preserving order
+    seen = set()
+    ordered = []
+
     for c in final_cols:
         if c in merged.columns and c not in seen:
-            seen.add(c); ordered.append(c)
+            seen.add(c)
+            ordered.append(c)
 
-    out = merged.reindex(columns=ordered).sort_values('Sample_ID')
+    out = (
+        merged
+        .reindex(columns=ordered)
+        .sort_values('Sample_ID')
+    )
 
-    cols_to_drop = [c for c in ('Top_Non-Agalactiae_Species',) if c in out.columns]
+    cols_to_drop = [
+        c
+        for c in (
+            'Top_Non-Agalactiae_Species',
+        )
+        if c in out.columns
+    ]
+
     if cols_to_drop:
-        out.drop(columns=cols_to_drop, inplace=True)
+        out.drop(
+            columns=cols_to_drop,
+            inplace=True
+        )
 
-
-    # 5)
-    #    - For PASS rows, missing in-silico fields => "MODULE FAILURE"
+    # 5) For PASS rows, missing in-silico fields become
+    # MODULE FAILURE
     if 'Overall_QC' in out.columns:
-        mask = (out['Overall_QC'] == 'PASS')
-        skip_cols = ['23S1_SNP', '23S3_SNP', 'gyrA_SNP', 'parC_SNP', 'typer_pipeline_version','cps_type']
-        fill_cols = [c for c in out.columns if c not in skip_cols]
-        out.loc[mask, fill_cols] = out.loc[mask, fill_cols].fillna('MODULE FAILURE')
+        mask = (
+            out['Overall_QC'] == 'PASS'
+        )
 
-    #    - All remaining empties => "NA"
+        # These columns are handled separately or allowed to be empty
+        skip_cols = [
+            '23S1_SNP',
+            '23S3_SNP',
+            'gyrA_SNP',
+            'parC_SNP',
+            'pipeline_version',
+            'cps_type',
+            'pbp1A',
+            'pbp2B',
+            'pbp2X'
+        ]
+
+        fill_cols = [
+            c
+            for c in out.columns
+            if c not in skip_cols
+        ]
+
+        out.loc[
+            mask,
+            fill_cols
+        ] = (
+            out.loc[
+                mask,
+                fill_cols
+            ]
+            .fillna('MODULE FAILURE')
+        )
+
+        # A QC-passed isolate with no SRST2 serotype call is
+        # unresolved, rather than unavailable. Existing calls,
+        # including NT for below-threshold depth, are preserved.
+        if 'cps_type' in out.columns:
+            out.loc[
+                mask,
+                'cps_type'
+            ] = (
+                out.loc[
+                    mask,
+                    'cps_type'
+                ]
+                .fillna('Unresolved')
+            )
+
+        # When PBP typing ran, every PASS sample should have
+        # one call for each PBP gene.
+        #
+        # Valid values should already be:
+        # allele number, "new", or "neg".
+        #
+        # A missing PBP row therefore indicates module failure.
+        if pbp_path != 'NONE':
+            out.loc[
+                mask,
+                PBP_COLUMNS
+            ] = (
+                out.loc[
+                    mask,
+                    PBP_COLUMNS
+                ]
+                .fillna('MODULE FAILURE')
+            )
+
+    # All remaining empty values become NA
     out = out.fillna('NA')
 
-    # 6) Write
-    out.to_csv(out_csv, index=False)
-    print(f"[combine] Wrote {out_csv} with {len(out)} rows × {len(out.columns)} cols")
+    # 6) Collapse detailed resistance and surface-protein
+    # presence/variant columns into grouped summary columns
+    for output_column, definition in GROUP_DEFINITIONS.items():
+        out[output_column] = out.apply(
+            collapse_determinant_group,
+            axis=1,
+            presence_columns=definition['presence'],
+            variant_columns=definition['variants']
+        )
+
+    # Remove detailed gene-by-gene columns from summary.csv only.
+    # The original detailed typer files remain unchanged.
+    source_columns_present = [
+        column
+        for column in (
+            DETAILED_COLUMNS_TO_DROP 
+            + ADDITIONAL_COLUMNS_TO_DROP
+        )
+        if column in out.columns
+    ]
+
+    if source_columns_present:
+        out.drop(
+            columns=source_columns_present,
+            inplace=True
+        )
+
+    # 7) Set the final summary report structure
+    report_prefix = [
+        'Sample_ID',
+        'Read_QC',
+        'Assembly_QC',
+        'Mapping_QC',
+        'Taxonomy_QC',
+        'Overall_QC',
+        'Bases',
+        'Contigs#',
+        'Assembly_Length',
+        'Seq_Depth',
+        'Ref_Cov_%',
+        'Het-SNP#',
+        'S.agalactiae_%',
+        'Top_Non-agalactiae_Species',
+        'Top_Non-agalactiae_Species_%',
+        'cps_type',
+        'ST',
+        'adhP',
+        'pheS',
+        'atr',
+        'glnA',
+        'sdhA',
+        'glcK',
+        'tkt'
+    ]
+
+    resistance_columns = [
+        'Erythromycin_Determinant',
+        'Clindamycin_Determinant',
+        'Tetracycline_Determinant',
+        'Chloramphenicol_Determinant',
+        'Gentamicin_HLGR_Determinant',
+        'Fluoroquinolone_Determinant',
+        'Vancomycin_Determinant',
+        'Other_Aminoglycoside_Determinant'
+    ]
+
+    surface_protein_columns = [
+        'Alpha_like_Protein',
+        'Pilus_Island',
+        'Serine_rich_Repeat_Protein',
+        'Hypervirulence_Determinant'
+    ]
+
+    report_suffix = [
+        'pbp1A',
+        'pbp2B',
+        'pbp2X',
+        'pipeline_version'
+    ]
+
+    preferred_columns = (
+        report_prefix
+        + resistance_columns
+        + surface_protein_columns
+        + report_suffix
+    )
+
+    # Preserve unexpected/new columns rather than silently losing them.
+    # Place them before the PBP and pipeline-version columns.
+    known_without_suffix = (
+        report_prefix
+        + resistance_columns
+        + surface_protein_columns
+    )
+
+    extra_columns = [
+        column
+        for column in out.columns
+        if column not in set(
+            preferred_columns
+        )
+    ]
+
+    final_report_columns = (
+        [
+            column
+            for column in known_without_suffix
+            if column in out.columns
+        ]
+        + extra_columns
+        + [
+            column
+            for column in report_suffix
+            if column in out.columns
+        ]
+    )
+
+    # Guarantee uniqueness while preserving order
+    seen_columns = set()
+    final_report_columns = [
+        column
+        for column in final_report_columns
+        if not (
+            column in seen_columns
+            or seen_columns.add(column)
+        )
+    ]
+
+    out = out.reindex(
+        columns=final_report_columns
+    )
+
+    # 8) Write final summary
+    out.to_csv(
+        out_csv,
+        index=False
+    )
+
+    print(
+        f"[combine] Wrote {out_csv} with "
+        f"{len(out)} rows × "
+        f"{len(out.columns)} cols"
+    )
+
 
 if __name__ == "__main__":
     main()

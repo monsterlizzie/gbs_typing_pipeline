@@ -26,6 +26,7 @@ drugRes_Col = {
     'TET': 'neg',
     'EC': 'neg',
     'FQ': 'neg',
+    "VAN": "neg",
     'OTHER': 'neg',
 }
 
@@ -62,6 +63,7 @@ geneToClass = {
     'TETO': 'TET',
     'TETSM': 'TET',
     'TETS': 'TET',
+    'TETT': 'TET',
     'TETW32O': 'TET',
     'TETW4FN396364': 'TET',
     'SUL2': 'OTHER',
@@ -73,6 +75,7 @@ geneToClass = {
     'RPOBGBS-2': 'OTHER',
     'RPOBGBS-3': 'OTHER',
     'RPOBGBS-4': 'OTHER',
+    'VANG': 'VAN'
 }
 
 # Other Resistance Targets dictionary
@@ -101,6 +104,7 @@ Res_Targets = {
     'TETB': 'neg',
     'TETL': 'neg',
     'TETM': 'neg',
+    'TETT': 'neg',
     'TETO32O': 'neg',
     'TETOW32OWO': 'neg',
     'TETOW32O': 'neg',
@@ -110,7 +114,8 @@ Res_Targets = {
     'TETSM': 'neg',
     'TETS': 'neg',
     'TETW32O': 'neg',
-    'TETW4FN396364': 'neg'
+    'TETW4FN396364': 'neg',
+    'VANG': 'neg'
 }
 
 # GBS Resistance Targets dictionary
@@ -290,7 +295,7 @@ def update_GBS_Res_var(gene_name, seq_diffs, bin_res_arr):
     if seq_diffs:
         bin_res_arr[gene_name + '_SNP'] = ','.join(seq_diffs)
     else:
-        bin_res_arr[gene_name + '_SNP'] = '*'
+        bin_res_arr[gene_name + '_SNP'] = 'neg'
 
 
 def update_drug_res_col_dict(gene_name, seq_diffs, drugRes_Col, geneToClass):

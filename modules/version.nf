@@ -11,10 +11,7 @@ process get_version {
     echo "version" > version.txt
 
     if [ -z "${params.version}" ]; then
-      v="\$(git -C "${workflow.projectDir}" describe --tags 2>/dev/null || true)"
-      if [ -z "\$v" ]; then
-        v="\$(git -C "${workflow.projectDir}" rev-parse --short HEAD 2>/dev/null || true)"
-      fi
+      v="\$(git -C "${workflow.projectDir}" describe --tags --always --dirty 2>/dev/null || true)"
       [ -z "\$v" ] && v="unknown"
       echo "\$v" >> version.txt
     else

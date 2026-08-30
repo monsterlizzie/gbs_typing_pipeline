@@ -33,6 +33,7 @@
         "TETW4FN396364": "tetW",
         "TETO": "tetO",
         "TETS": "tetS",
+        "TETT": "tetT",
         "TETO32O": "tetO32O",
         "TETOW": "tetOW",
         "TETOW32O": "tetOW32O",
@@ -40,6 +41,7 @@
         "TETOWO": "tetOWO",
         "TETSM": "tetSM",
         "TETW32O": "tetW32O",
+        "VANG": "vanG",
         "ALP1": "alp1",
         "ALP23": "alp2/3",
         "ALPHA": "alpha",
@@ -55,7 +57,7 @@
         "23S3_SNP": "23S3_SNP",
         "GYRA_SNP": "gyrA_SNP",
         "PARC_SNP": "parC_SNP",
-        "version": "typer_pipeline_version"
+        "version": "pipeline_version"
     },
     "surface_inc": [
         "ALP1",
