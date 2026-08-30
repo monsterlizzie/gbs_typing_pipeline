@@ -97,7 +97,7 @@ git clone https://github.com/monsterlizzie/gbs_typing_pipeline.git
 cd gbs_typing_pipeline
 ```
 
-Confirm that Nextflow and the selected container runtime are available:
+Confirm that Nextflow and the selected container are available:
 
 ```bash
 nextflow -version
