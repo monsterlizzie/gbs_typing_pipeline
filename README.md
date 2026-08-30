@@ -37,9 +37,9 @@ overall QC
         `--> QC-passed samples
                  |
                  +--> PBP typing (mandatory core module)
-                 +--> serotype and resistance typing (optional)
-                 +--> MLST (optional)
-                 `--> surface-protein typing (optional)
+                 +--> serotype and resistance typing 
+                 +--> MLST 
+                 `--> surface-protein typing 
         |
         v
 summary.csv
@@ -70,10 +70,10 @@ Typing is performed only for samples that pass overall QC.
 | Module | Status in v2.0 | Main tools | Output |
 |---|---|---|---|
 | PBP typing | Mandatory core module | BLAST and custom scripts | PBP1A, PBP2B and PBP2X allele calls |
-| Capsular serotyping | Optional, enabled by default | SRST2, GBS-SBG | `cps_type` |
-| Antimicrobial-resistance typing | Optional, enabled with serotyping by default | SRST2, FreeBayes | Acquired genes and selected resistance-associated variants |
-| MLST | Optional, enabled by default | SRST2 | Sequence type and allele profile |
-| Surface-protein typing | Optional, enabled by default | SRST2 | Alpha-like proteins, pilus islands and other surface proteins |
+| Capsular serotyping | enabled by default | SRST2, GBS-SBG | `cps_type` |
+| Antimicrobial-resistance typing | enabled with serotyping by default | SRST2, FreeBayes | Acquired genes and selected resistance-associated variants |
+| MLST | enabled by default | SRST2 | Sequence type and allele profile |
+| Surface-protein typing | enabled by default | SRST2 | Alpha-like proteins, pilus islands and other surface proteins |
 
 ## Requirements
 
