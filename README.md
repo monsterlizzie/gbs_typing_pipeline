@@ -1,6 +1,11 @@
 
 # GBS Typing Pipeline
 
+> **Archived pre-v2.0 version.** This snapshot is retained to reproduce older
+> analyses. It uses the legacy typing thresholds and reporting rules. PBP
+> typing is optional and must be started separately with the legacy flags
+> described below. Use the `v2.0` release for new analyses.
+
 This repository contains a fully integrated pipeline for whole-genome sequencing (WGS) analysis of *Streptococcus agalactiae* (Group B Streptococcus, GBS).  
 It performs **quality control (QC)** and **genomic typing** in a single Nextflow pipeline run. Output includes a consolidated `summary.csv` covering all QC and typing results.
 
@@ -139,7 +144,29 @@ On Sanger LSF farm:
 nextflow run main.nf -profile lsf 
 ```
 
-Add `--run_pbptyper` and `--pbp_contig "output/assemblies/*.fasta"` if you want to run PBP typing.
+### Optional PBP typing in this archived version
+
+PBP typing is not part of the core workflow in this version. First complete
+the standard pipeline run so that the de novo assemblies are present in
+`output/assemblies/`. Then rerun from the same launch directory with `-resume`
+and the legacy PBP options:
+
+```bash
+nextflow run main.nf \
+  -profile standard \
+  -resume \
+  --run_pbptyper true \
+  --pbp_contig "output/assemblies/*.contigs.fasta"
+```
+
+If a different output directory was used, replace `output/assemblies/` with
+the corresponding assemblies directory. Keep the wildcard expression inside
+quotation marks.
+
+The PBP results from this archived procedure are not integrated into the main
+report in the same way as v2.0. This version also uses the older thresholds
+listed above and does not include the v2.0 `Unresolved` serotype-reporting
+rule. Record `legacy-pre-v2.0` in any analysis performed with this snapshot.
 
 ---
 
