@@ -365,7 +365,7 @@ before production use.
 
 Check that:
 
-- both mates are in the directory supplied with `--reads`;
+- both pairs files are in the directory supplied with `--reads`;
 - filenames use a supported `_1/_2` or `_R1/_R2` pattern;
 - sample identifiers match exactly between mates;
 - duplicate compressed and uncompressed copies are not present.
@@ -404,27 +404,6 @@ Useful files include:
 .exitcode
 ```
 
-Do not interpret an empty typing field before confirming that the corresponding
-process completed successfully.
-
-## Testing and validation
-
-Test changes at the smallest relevant pipeline boundary before a full
-end-to-end run:
-
-1. Run focused unit or component tests.
-2. Replay saved upstream QC/typing tables when changing report generation.
-3. Run one or two representative paired-read samples.
-4. Confirm expected values and unchanged control cases.
-5. Run a larger validation set before release when analysis logic or workflow
-   integration changes.
-
-Run the Python regression tests in an environment containing pandas:
-
-```bash
-python -m unittest discover -s tests -v
-```
-
 ## Project history and attribution
 
 The GBS Typing Pipeline integrates two earlier bodies of work:
@@ -436,8 +415,7 @@ The GBS Typing Pipeline integrates two earlier bodies of work:
 
 Version 2.0 represents the integrated QC-plus-typing workflow. QC and PBP
 typing are mandatory core stages, while the read-based typing modules are
-configurable. Earlier development versions were not released under a
-consistent semantic version number.
+configurable.
 
 ## Citations
 
