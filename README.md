@@ -87,7 +87,7 @@ Typing is performed only for samples that pass overall QC.
 - Sufficient storage for assemblies, reference indices, containers and the
   Nextflow `work/` directory
 
-The workflow has been developed for paired-end Illumina reads. It does not
+The workflow has been developed for paired-end raw reads. It does not
 accept assemblies as the primary workflow input.
 
 ## Installation
@@ -301,13 +301,6 @@ output/
 metrics, serotype, MLST, grouped resistance determinants, grouped
 surface-protein calls, PBP alleles and pipeline version.
 
-The `pipeline_version` column is generated from the Git release tag. An exact
-v2.0 release checkout reports `v2.0`; later development commits include the
-distance from the tag and a short commit identifier. A locally modified
-checkout is marked `dirty`.
-
-Detailed module outputs are retained under `output/typer/`. Novel-allele files
-are emitted only when a relevant novel allele is detected.
 
 ## Interpreting QC and serotype values
 
