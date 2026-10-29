@@ -9,6 +9,27 @@ Pneumococcal Sequencing (GPS) workflow, with typing modules derived from the
 Sanger GBS-Typer workflow. Version 2.0 runs QC and typing as one coordinated
 analysis: samples must pass overall QC before entering the typing modules.
 
+### Version 2.0.1 release
+
+The [v2.0.1 release](https://github.com/monsterlizzie/gbs_typing_pipeline/releases/tag/v2.0.1)
+documents the integrated v2.0 workflow and includes the PBS execution profile
+added after the original `v2.0` tag. After cloning, use `git checkout v2.0.1`
+for this release. The analysis scripts, databases and typing thresholds are
+unchanged from the manuscript checkout `75b24ab`; use `git checkout 75b24ab`
+when reproducing that exact checkout. The original `v2.0` tag is preserved.
+
+The principal v2.0 updates are:
+
+- AMR and surface-protein gene reporting uses 90% reference coverage and a
+  90% sequence-identity equivalent (configured as 10% maximum divergence),
+  with a separate minimum mean read depth of 10×.
+- The consolidated summary groups resistance determinants by antibiotic
+  category and surface-protein calls by protein family, and includes PBP calls.
+- PBP1A, PBP2B and PBP2X typing is integrated into the workflow and receives
+  assemblies only after the sample passes **overall QC**, not assembly QC alone.
+  A separate PBP run is not required.
+- Serotype reporting distinguishes named serotypes, `NT`, `Unresolved` and `NA`.
+
 For a routine analysis, a user only needs to:
 
 1. Put each pair of raw read files in `input/`.
@@ -165,6 +186,21 @@ nextflow run main.nf \
 The `lsf` profile uses the LSF executor and Singularity containers. Site-specific
 queue, storage and resource settings may need to be adjusted elsewhere.
 
+### PBS execution
+
+The `pbs` profile uses Nextflow's `pbspro` executor with Singularity:
+
+```bash
+nextflow run main.nf \
+  -profile pbs \
+  --reads /path/to/paired_reads \
+  --output /path/to/results
+```
+
+Adapt queue and resource settings to the cluster and validate the profile at
+your site before a large run. The profile is retained from the v2.0 merge;
+this documentation release does not constitute a new PBS execution test.
+
 ### Resuming an interrupted run
 
 ```bash
@@ -261,6 +297,9 @@ production use.
 | Serotyping | `--serotyper_min_read_depth` | 10 |
 | GBS resistance | `--gbs_res_min_coverage` | 90 |
 | GBS resistance | `--gbs_res_max_divergence` | 10 |
+| Additional resistance database (ResFinder) | `--other_res_min_coverage` | 90 |
+| Additional resistance database (ResFinder) | `--other_res_max_divergence` | 10 |
+| Resistance result processing | `--restyper_min_read_depth` | 10 |
 | MLST | `--mlst_min_coverage` | 90 |
 | MLST | `--mlst_min_read_depth` | 10 |
 | Surface proteins | `--surfacetyper_min_coverage` | 90 |
@@ -268,6 +307,21 @@ production use.
 | Surface proteins | `--surfacetyper_min_read_depth` | 10 |
 | PBP target detection | `--pbp_frac_align_threshold` | 0.5 |
 | PBP target detection | `--pbp_frac_identity_threshold` | 0.5 |
+
+Coverage and divergence values above are percentages; read-depth values are
+mean depth in ×. The 90% coverage and 10% maximum-divergence settings match
+[SRST2's default gene-reporting parameters](https://github.com/katholt/srst2/blob/master/scripts/srst2.py).
+For reporting, the latter is described as a 90% sequence-identity equivalent;
+the actual command-line parameter remains `--max_divergence`.
+The pipeline additionally filters AMR and surface-protein calls at 10× mean
+depth. This is stricter than SRST2's default 5× low-depth warning threshold:
+SRST2 flags dubious calls, whereas these pipeline result processors filter
+gene-presence calls. These typing thresholds are separate from the 20×
+genome-wide QC depth requirement.
+
+`--mlst_min_read_depth` controls downstream MLST allele processing; it does not
+replace SRST2's own depth-warning setting. PBP typing is assembly-based and
+uses its separate fractional thresholds, not the SRST2 gene-reporting cut-offs.
 
 ## Output files
 
@@ -309,14 +363,22 @@ The pipeline provides two reports for different purposes:
 | Report | Intended use | Contents |
 |---|---|---|
 | `output/summary.csv` | Routine review, surveillance and downstream analysis | QC results, grouped antimicrobial-resistance determinants, serotype, ST, grouped surface-protein calls, PBP1A/PBP2B/PBP2X allele calls and pipeline version |
-| `output/typer/gbs_typer_report.txt` | Detailed typing report including Serotype, ST, the seven MLST loci, individual resistance-gene incidence, selected GBS-specific resistance variants, surface-protein incidence and pipeline version |
+| `output/typer/gbs_typer_report.txt` | Inspection of individual typing calls | Serotype, ST, the seven MLST loci, individual resistance-gene incidence, selected GBS-specific resistance variants, surface-protein incidence and pipeline version |
 
-The detailed typing report and corresponding detailed module reports is generated when serotype/resistance typing, MLST
+The combined detailed typing report is generated when serotype/resistance typing, MLST
 and surface-protein typing are all enabled. Its individual gene columns retain
 more detail than the grouped positive/negative determinant columns in
 `summary.csv`. PBP results are not part of `gbs_typer_report.txt`; they are
 reported in `summary.csv`, `typer/existing_pbp_alleles.txt`, the PBP status
 files and any novel PBP FASTA output.
+
+The grouped AMR columns contain detected determinant names or variants, or
+`neg` when no included determinant is reported. They are **not phenotypic
+susceptibility categories**: `neg` does not establish susceptibility, and a
+determinant call should be interpreted using the relevant inference rules.
+Unavailable results must not be treated as negative calls. The summary covers
+erythromycin, clindamycin, tetracycline, chloramphenicol, high-level gentamicin
+resistance, fluoroquinolones, vancomycin and other aminoglycosides.
 
 Column descriptions for the detailed typing report are available in the
 [GBS-Typer report-column reference](https://docs.google.com/spreadsheets/d/1R5FFvACC3a6KCKkTiluhTj492-4cCe74HcCoklqX-X0/edit?usp=sharing).
@@ -347,7 +409,7 @@ diagnostic value.
 | Value | Interpretation |
 |---|---|
 | An allele number | The translated PBP sequence exactly matched an allele in the current database |
-| `NEW` | A complete, qualifying PBP protein was detected but did not exactly match a known allele; the sequence is also written to `<sample_id>_<PBP_target>_PBP_new_allele.faa` |
+| `NEW` | A qualifying translated PBP target fragment was detected but did not exactly match a known database allele; the sequence is also written to `<sample_id>_<PBP_target>_PBP_new_allele.faa` |
 | `PARTIAL_PBP_GENE` | The predicted PBP region crosses the start or end of an assembly contig, so a complete allele cannot be assigned |
 | `PBP_NOT_DETECTED` | No target passed the initial PBP detection thresholds |
 | `NO_BLAST_HIT` | A complete query was produced, but the protein search returned no database hit |
@@ -361,6 +423,14 @@ disrupted gene in the isolate. Likewise, `PBP_NOT_DETECTED`, `NO_BLAST_HIT` and
 `NO_ALLELE_MATCH` are diagnostic outcomes rather than allele names. Review
 `pbp_target_status.txt`, `pbp_allele_status.txt` and the assembly before making
 a biological interpretation.
+
+New PBP files contain amino-acid sequences (`.faa`). The target names are
+`GBS1A-1`, `GBS2B-1` and `GBS2X-1`. Preserve these files with the summary and
+assemblies: a `NEW` label and contig coordinates alone do not contain the
+sequence. Filenames use the sample identifier passed to the module; historical
+standalone runs may include `.contigs` in that identifier. Different samples
+labelled `NEW` may carry the same sequence, so the number of `NEW` calls is not
+the number of distinct novel alleles.
 
 ## Storage management
 
