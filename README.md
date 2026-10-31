@@ -218,7 +218,7 @@ The `qc_only` profile runs QC without typing, including PBP,
 and writes a QC-only `summary.csv`.
 
 ```bash
-nextflow run monsterlizzie/gbs_typing_pipeline \
+nextflow run main.nf \
   -profile standard,qc_only \
   --reads /path/to/paired_reads \
   --output qc_results \
@@ -228,7 +228,7 @@ nextflow run monsterlizzie/gbs_typing_pipeline \
 To continue with full typing:
 
 ```bash
-nextflow run monsterlizzie/gbs_typing_pipeline \
+nextflow run main.nf \
   -profile standard \
   --qc_only false \
   --reads /path/to/paired_reads \
