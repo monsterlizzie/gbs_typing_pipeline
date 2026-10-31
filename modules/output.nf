@@ -6,10 +6,10 @@ process GENERATE_QC_ONLY_REPORT {
     path qc_files
     path version_file
     output:
-    path 'summary.csv'
+    path 'qc.csv'
     script:
     """
-    python3 ${projectDir}/bin/generate_qc_only_report.py '*_qc.csv' '${version_file}' summary.csv
+    python3 ${projectDir}/bin/generate_qc_only_report.py '*_qc.csv' '${version_file}' qc.csv
     """
 }
 

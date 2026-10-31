@@ -215,7 +215,7 @@ parameters and cached work remain compatible.
 ## QC-only execution
 
 The `qc_only` profile runs QC without typing, including PBP,
-and writes a QC-only `summary.csv`.
+and writes `qc.csv`. Full analysis writes `summary.csv`.
 
 ```bash
 nextflow run main.nf \
