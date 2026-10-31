@@ -18,6 +18,10 @@ for this release. The analysis scripts, databases and typing thresholds are
 unchanged from the manuscript checkout `75b24ab`; use `git checkout 75b24ab`
 when reproducing that exact checkout. The original `v2.0` tag is preserved.
 
+The current `main` branch additionally supports QC-only execution and resuming
+from QC-only to full typing (see below). These changes are not part of the
+published `v2.0.1` tag; use `-r main` for the new mode.
+
 The principal v2.0 updates are:
 
 - AMR and surface-protein gene reporting uses 90% reference coverage and a
@@ -57,7 +61,7 @@ overall QC
         |
         `--> QC-passed samples
                  |
-                 +--> PBP typing (mandatory core module)
+                 +--> PBP typing (full analysis only)
                  +--> serotype and resistance typing 
                  +--> MLST 
                  `--> surface-protein typing 
@@ -215,31 +219,58 @@ Resume from the same launch directory and retain the original `.nextflow/`
 history and `work/` directory. Nextflow reuses only tasks whose code, inputs,
 parameters and cached work remain compatible.
 
-## Running without the optional read-based typing modules
+## QC-only execution and continuing to full typing (main branch)
 
-To run QC and core PBP typing without serotype/resistance, surface-protein
-typing or MLST:
+QC-only runs FASTQ validation, preprocessing, assembly, read/assembly/mapping/
+taxonomy QC and overall QC. It skips **all typing**, including PBP typing.
+Docker must be running for the `standard` profile.
 
 ```bash
-nextflow run main.nf \
-  -profile standard \
+nextflow run monsterlizzie/gbs_typing_pipeline -r main \
+  -profile standard,qc_only \
   --reads /path/to/paired_reads \
-  --output /path/to/qc_and_pbp_results \
-  --run_sero_res false \
-  --run_surfacetyper false \
-  --run_mlst false
+  --output qc_results \
+  -name gbs_qc
 ```
 
-There is no `--serotyper false` option:
-`--run_sero_res false` disables both capsular serotyping and resistance typing.
+`qc_results/summary.csv` contains 16 sample, QC and version columns, with no
+unperformed typing columns. Invalid read pairs remain in the report with their
+file-validation status. Per-sample QC reports and the usual QC outputs are retained.
+The equivalent parameter is `--qc_only true`, combined with an execution profile
+such as `-profile standard` or `-profile singularity`.
 
-This retains FASTQ validation, preprocessing, assembly, mapping, taxonomy and
-overall QC, followed by core PBP typing for isolates that pass overall QC. QC
-and PBP typing cannot be disabled in v2.0.
+After successful QC-only completion, continue to full typing:
 
-The former `--skip_qc` and `--run_pbptyper` parameters have been removed. If
-either is supplied, the pipeline stops with a message explaining that the
-corresponding stage is mandatory.
+```bash
+nextflow run monsterlizzie/gbs_typing_pipeline -r main \
+  -profile standard \
+  --qc_only false \
+  --reads /path/to/paired_reads \
+  --output full_results \
+  -resume gbs_qc
+```
+
+Run both commands from the same launch directory, using the same input paths,
+reference database settings, resource configuration and pipeline revision.
+Retain `.nextflow/` and `work/` (or the same explicit `-work-dir`). Resume reuses
+compatible task outputs from the work directory, not the exported summary CSV.
+Do not update the pipeline checkout between these commands. For reproducibility,
+replace `main` in both commands with the same commit SHA.
+
+The full run enables serotyping, AMR, MLST, surface-protein and PBP typing for
+QC-passed samples and writes the normal 40-column `full_results/summary.csv`.
+Separate output directories preserve both summaries. A fresh full run uses the
+second command without `-resume gbs_qc`.
+
+The legacy `--run_sero_res`, `--run_surfacetyper` and `--run_mlst` switches remain
+available, but disabling these individually is not the QC-only mode: PBP still
+runs unless `--qc_only true` is selected. Use the QC-only mode above when no
+typing is wanted. `--skip_qc` and `--run_pbptyper` remain unsupported.
+
+Validation: Nextflow 25.04.6 with Docker, two real paired-read samples and one
+synthetic truncated-gzip control. QC-only and resumed full runs retained all
+three samples; shared QC values matched, and the corrupted control was excluded
+from typing. Other executor profiles were not revalidated in this test.
 
 ## Module controls
 
@@ -500,8 +531,7 @@ The GBS Typing Pipeline integrates two earlier bodies of work:
 - GBS typing modules adapted from
   [GBS-Typer-sanger-nf](https://github.com/sanger-bentley-group/GBS-Typer-sanger-nf)
 
-Version 2.0 represents the integrated QC-plus-typing workflow. QC and PBP
-typing are mandatory core stages, while the read-based typing modules are
+Version 2.0 represents the integrated QC-plus-typing workflow. QC is mandatory; full analysis includes PBP typing, while the read-based typing modules are
 configurable.
 
 ## Citations

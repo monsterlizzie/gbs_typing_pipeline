@@ -5,7 +5,7 @@ include { ASSEMBLY_UNICYCLER; ASSEMBLY_SHOVILL; ASSEMBLY_ASSESS; ASSEMBLY_QC; AS
 include { GET_REF_GENOME_BWA_DB; MAPPING; SAM_TO_SORTED_BAM; SNP_CALL; HET_SNP_COUNT; MAPPING_QC; MAPPING_QC_FALLBACK} from "$projectDir/modules/mapping"
 include { GET_KRAKEN2_DB; TAXONOMY; BRACKEN; TAXONOMY_QC; TAXONOMY_QC_FALLBACK } from "$projectDir/modules/taxonomy"
 include { OVERALL_QC } from "$projectDir/modules/overall_qc"
-include { GENERATE_SAMPLE_REPORT; GENERATE_OVERALL_REPORT } from "$projectDir/modules/output"
+include { GENERATE_SAMPLE_REPORT; GENERATE_OVERALL_REPORT; GENERATE_QC_ONLY_REPORT } from "$projectDir/modules/output"
 include { serotyping } from './modules/serotyping.nf'
 include { srst2_for_res_typing; split_target_RES_seq_from_sam_file; split_target_RES_sequences; freebayes } from './modules/res_alignments.nf'
 include { res_typer } from './modules/res_typer.nf'
@@ -46,6 +46,9 @@ workflow {
     if (params.containsKey('run_pbptyper')) {
         error "--run_pbptyper has been removed: PBP typing is mandatory in v2.0."
     }
+
+    get_version()
+    version_ch = get_version.out
 
     INIT_DB_DIR()
     db_dir_ch = INIT_DB_DIR.out.db_dir
@@ -388,7 +391,7 @@ workflow PBP2X {
     pbp_status = get_pbp_alleles.out.pbp_status
 }
 
-    if (params.run_sero_res){
+    if (!params.qc_only && params.run_sero_res){
         serotyping(OVERALL_QC_PASSED_PAIRED_READS_ch, file(params.sero_gene_db, checkIfExists: true), params.serotyper_min_read_depth)
 
         GBS_RES(OVERALL_QC_PASSED_PAIRED_READS_ch)
@@ -415,7 +418,7 @@ workflow PBP2X {
             .collectFile(name: file("${params.output}/${params.res_accessions_out}"))
     }
 
-    if (params.run_mlst){
+    if (!params.qc_only && params.run_mlst){
         MLST(OVERALL_QC_PASSED_PAIRED_READS_ch)
         MLST.out.new_alleles.subscribe { it -> it.copyTo(file("${params.output}")) }
         MLST.out.pileup.subscribe { it -> it.copyTo(file("${params.output}")) }
@@ -425,7 +428,7 @@ workflow PBP2X {
             .collectFile(name: file("${params.output}/${params.new_mlst_alleles_status}"), keepHeader: false, sort: true)
     }
 
-    if (params.run_surfacetyper){
+    if (!params.qc_only && params.run_surfacetyper){
         surface_typer(OVERALL_QC_PASSED_PAIRED_READS_ch, file(params.gbs_surface_typer_db, checkIfExists: true),
             params.surfacetyper_min_read_depth, params.surfacetyper_min_coverage, params.surfacetyper_max_divergence)
 
@@ -437,7 +440,11 @@ workflow PBP2X {
             .collectFile(name: file("${params.output}/${params.surface_protein_variants_out}"), keepHeader: true)
     }
 
-    // PBP typing is a mandatory core module and receives QC-passed assemblies.
+    pbp_path_ch = Channel.value('NONE')
+    pbp_target_status_path_ch = Channel.value('NONE')
+    pbp_allele_status_path_ch = Channel.value('NONE')
+    // Full analysis retains PBP typing; QC-only bypasses every typing process.
+    if (!params.qc_only) {
     get_pbp_genes(
             OVERALL_QC_PASSED_ASSEMBLIES_ch,
             file(params.gbs_blactam_db, checkIfExists: true),
@@ -462,7 +469,7 @@ workflow PBP2X {
                 keepHeader: true,
                 sort: true
             )
-            .map { it.toString() }
+            .map { it.toString() }.ifEmpty('NONE')
 
         // NEW: upstream target-detection statuses
         pbp_target_status_path_ch = get_pbp_genes.out.pbp_target_status
@@ -479,7 +486,7 @@ workflow PBP2X {
                 name: file("${params.output}/pbp_target_status.txt"),
                 sort: true
             )
-            .map { it.toString() }
+            .map { it.toString() }.ifEmpty('NONE')
 
         // NEW: final status from each allele-typing process
         pbp_allele_status_path_ch = PBP1A.out.pbp_status
@@ -494,12 +501,12 @@ workflow PBP2X {
                 name: file("${params.output}/pbp_allele_status.txt"),
                 sort: true
             )
-            .map { it.toString() }
+            .map { it.toString() }.ifEmpty('NONE')
 
 
-    if (params.run_sero_res & params.run_surfacetyper & params.run_mlst){
-        get_version()
-        version_ch = get_version.out
+    }
+
+    if (!params.qc_only && params.run_sero_res && params.run_surfacetyper && params.run_mlst){
 
         combined_ch = serotyping.out
             .join(res_typer.out.res_out)
@@ -508,13 +515,11 @@ workflow PBP2X {
 
         combine_results(combined_ch, file(params.config, checkIfExists: true), version_ch)
 
-        combine_results.out
-            .collectFile(name: file("${params.output}/${params.gbs_typer_report}"), keepHeader: true, sort: true)
     }
 
     // Typer CSV channel from the collectFile 
     typer_csv_ch = Channel.empty()
-    if (params.run_sero_res & params.run_surfacetyper & params.run_mlst) {
+    if (!params.qc_only && params.run_sero_res && params.run_surfacetyper && params.run_mlst) {
         typer_csv_ch = combine_results.out.collectFile(
             name: file("${params.output}/${params.gbs_typer_report}"),
             keepHeader: true,
@@ -527,10 +532,13 @@ workflow PBP2X {
     qc_glob_ch = done_ch.map {"${file(params.output).toAbsolutePath()}/qc_reports/*_qc.csv"}
 
     // Typer path (or NONE if typer wasn’t run)
-    typer_path_ch = typer_csv_ch.ifEmpty { Channel.value('NONE') }.map { it.toString() }
+    typer_path_ch = typer_csv_ch.map { it.toString() }.ifEmpty('NONE')
 
    
 
+    if (params.qc_only) {
+        GENERATE_QC_ONLY_REPORT(done_ch, version_ch)
+    } else {
     // Fire the overall report (still runs, even if typer_path_ch == 'NONE')
     GENERATE_OVERALL_REPORT(
     qc_glob_ch,
@@ -541,5 +549,7 @@ workflow PBP2X {
 )
 
 
+
+    }
 
 }

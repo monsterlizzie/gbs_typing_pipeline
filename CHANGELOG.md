@@ -1,5 +1,16 @@
 # Release history
 
+## Unreleased — main
+
+- Added `qc_only` profile / `--qc_only true` to skip all typing, including PBP.
+- Added a QC-only summary with 16 QC/version columns, retaining invalid samples.
+- Retained default full typing and its 40-column summary; documented cached
+  continuation from QC-only to full analysis using `-resume`.
+- Corrected empty report-channel fallbacks and removed duplicate typer-report
+  collection. No typing thresholds, databases or genotype inference rules changed.
+- Verified real Docker QC-only and resumed full execution on two real read pairs
+  plus a synthetic corrupted pair. The v2.0.1 tag and release are unchanged.
+
 ## v2.0.1 — 29 October 2026
 
 - Documented typing cut-offs, their relation to SRST2 defaults, grouped AMR

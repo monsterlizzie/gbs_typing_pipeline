@@ -1,3 +1,18 @@
+process GENERATE_QC_ONLY_REPORT {
+    label 'python_container'
+    label 'farm_low'
+    publishDir "${params.output}", mode: 'copy'
+    input:
+    path qc_files
+    path version_file
+    output:
+    path 'summary.csv'
+    script:
+    """
+    python3 ${projectDir}/bin/generate_qc_only_report.py '*_qc.csv' '${version_file}' summary.csv
+    """
+}
+
 process GENERATE_SAMPLE_REPORT {
     label 'python_container'
     label 'farm_low'
