@@ -13,8 +13,7 @@ analysis: samples must pass overall QC before entering the typing modules.
 
 The [v2.0.1 release](https://github.com/monsterlizzie/gbs_typing_pipeline/releases/tag/v2.0.1)
 includes QC-only execution and continuation to full typing with `-resume`.
-Typing thresholds and databases are unchanged. Use `git checkout 75b24ab`
-to reproduce the manuscript checkout.
+Typing thresholds and databases are unchanged.
 
 The principal v2.0 updates are:
 
@@ -219,7 +218,7 @@ The `qc_only` profile runs QC without typing, including PBP,
 and writes a QC-only `summary.csv`.
 
 ```bash
-nextflow run monsterlizzie/gbs_typing_pipeline -r v2.0.1 \
+nextflow run monsterlizzie/gbs_typing_pipeline \
   -profile standard,qc_only \
   --reads /path/to/paired_reads \
   --output qc_results \
@@ -229,7 +228,7 @@ nextflow run monsterlizzie/gbs_typing_pipeline -r v2.0.1 \
 To continue with full typing:
 
 ```bash
-nextflow run monsterlizzie/gbs_typing_pipeline -r v2.0.1 \
+nextflow run monsterlizzie/gbs_typing_pipeline \
   -profile standard \
   --qc_only false \
   --reads /path/to/paired_reads \
@@ -237,7 +236,7 @@ nextflow run monsterlizzie/gbs_typing_pipeline -r v2.0.1 \
   -resume gbs_qc
 ```
 
-Use the same launch directory, inputs and pipeline revision. Keep `.nextflow/`
+Run both commands from the same folder with the same reads. Keep `.nextflow/`
 and `work/` so completed QC tasks can be reused. The full summary is saved in
 `full_results/summary.csv`. For a fresh full run, omit `-resume gbs_qc`.
 
