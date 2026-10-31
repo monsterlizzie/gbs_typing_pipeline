@@ -219,11 +219,10 @@ Resume from the same launch directory and retain the original `.nextflow/`
 history and `work/` directory. Nextflow reuses only tasks whose code, inputs,
 parameters and cached work remain compatible.
 
-## QC-only execution and continuing to full typing (main branch)
+## QC-only execution
 
-QC-only runs FASTQ validation, preprocessing, assembly, read/assembly/mapping/
-taxonomy QC and overall QC. It skips **all typing**, including PBP typing.
-Docker must be running for the `standard` profile.
+Available on `main`. The `qc_only` profile runs QC without typing, including PBP,
+and writes a QC-only `summary.csv`.
 
 ```bash
 nextflow run monsterlizzie/gbs_typing_pipeline -r main \
@@ -233,13 +232,7 @@ nextflow run monsterlizzie/gbs_typing_pipeline -r main \
   -name gbs_qc
 ```
 
-`qc_results/summary.csv` contains 16 sample, QC and version columns, with no
-unperformed typing columns. Invalid read pairs remain in the report with their
-file-validation status. Per-sample QC reports and the usual QC outputs are retained.
-The equivalent parameter is `--qc_only true`, combined with an execution profile
-such as `-profile standard` or `-profile singularity`.
-
-After successful QC-only completion, continue to full typing:
+To continue with full typing:
 
 ```bash
 nextflow run monsterlizzie/gbs_typing_pipeline -r main \
@@ -250,27 +243,9 @@ nextflow run monsterlizzie/gbs_typing_pipeline -r main \
   -resume gbs_qc
 ```
 
-Run both commands from the same launch directory, using the same input paths,
-reference database settings, resource configuration and pipeline revision.
-Retain `.nextflow/` and `work/` (or the same explicit `-work-dir`). Resume reuses
-compatible task outputs from the work directory, not the exported summary CSV.
-Do not update the pipeline checkout between these commands. For reproducibility,
-replace `main` in both commands with the same commit SHA.
-
-The full run enables serotyping, AMR, MLST, surface-protein and PBP typing for
-QC-passed samples and writes the normal 40-column `full_results/summary.csv`.
-Separate output directories preserve both summaries. A fresh full run uses the
-second command without `-resume gbs_qc`.
-
-The legacy `--run_sero_res`, `--run_surfacetyper` and `--run_mlst` switches remain
-available, but disabling these individually is not the QC-only mode: PBP still
-runs unless `--qc_only true` is selected. Use the QC-only mode above when no
-typing is wanted. `--skip_qc` and `--run_pbptyper` remain unsupported.
-
-Validation: Nextflow 25.04.6 with Docker, two real paired-read samples and one
-synthetic truncated-gzip control. QC-only and resumed full runs retained all
-three samples; shared QC values matched, and the corrupted control was excluded
-from typing. Other executor profiles were not revalidated in this test.
+Use the same launch directory, inputs and pipeline revision. Keep `.nextflow/`
+and `work/` so completed QC tasks can be reused. The full summary is saved in
+`full_results/summary.csv`. For a fresh full run, omit `-resume gbs_qc`.
 
 ## Module controls
 
