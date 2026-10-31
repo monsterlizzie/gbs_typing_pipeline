@@ -1,19 +1,10 @@
 # Release history
 
-## Unreleased — main
+## v2.0.1 — updated 31 October 2026
 
-- Added a QC-only profile that skips all typing and produces a QC summary.
-- Added commands for QC-only runs and resuming full typing.
-
-## v2.0.1 — 29 October 2026
-
-- Documented typing cut-offs, their relation to SRST2 defaults, grouped AMR
-  reporting, overall-QC gating of assemblies and novel PBP sequence outputs.
-- Added the missing resistance-depth and ResFinder parameters to the README.
-- Included the PBS/Singularity execution profile already present on `main`
-  since merge `75b24ab` but absent from the original `v2.0` tag.
-- Preserved the analysis scripts, databases, typing thresholds and container
-  versions from manuscript checkout `75b24ab`. No typing logic was changed.
+- Added a QC-only profile and QC summary, with resume to full typing.
+- Updated usage instructions and documented typing cut-offs and PBP reporting.
+- Includes the PBS execution profile. Typing thresholds and databases are unchanged.
 
 ## v2.0
 

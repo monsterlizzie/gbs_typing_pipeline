@@ -12,15 +12,9 @@ analysis: samples must pass overall QC before entering the typing modules.
 ### Version 2.0.1 release
 
 The [v2.0.1 release](https://github.com/monsterlizzie/gbs_typing_pipeline/releases/tag/v2.0.1)
-documents the integrated v2.0 workflow and includes the PBS execution profile
-added after the original `v2.0` tag. After cloning, use `git checkout v2.0.1`
-for this release. The analysis scripts, databases and typing thresholds are
-unchanged from the manuscript checkout `75b24ab`; use `git checkout 75b24ab`
-when reproducing that exact checkout. The original `v2.0` tag is preserved.
-
-The current `main` branch additionally supports QC-only execution and resuming
-from QC-only to full typing (see below). These changes are not part of the
-published `v2.0.1` tag; use `-r main` for the new mode.
+includes QC-only execution and continuation to full typing with `-resume`.
+Typing thresholds and databases are unchanged. Use `git checkout 75b24ab`
+to reproduce the manuscript checkout.
 
 The principal v2.0 updates are:
 
@@ -221,11 +215,11 @@ parameters and cached work remain compatible.
 
 ## QC-only execution
 
-Available on `main`. The `qc_only` profile runs QC without typing, including PBP,
+The `qc_only` profile runs QC without typing, including PBP,
 and writes a QC-only `summary.csv`.
 
 ```bash
-nextflow run monsterlizzie/gbs_typing_pipeline -r main \
+nextflow run monsterlizzie/gbs_typing_pipeline -r v2.0.1 \
   -profile standard,qc_only \
   --reads /path/to/paired_reads \
   --output qc_results \
@@ -235,7 +229,7 @@ nextflow run monsterlizzie/gbs_typing_pipeline -r main \
 To continue with full typing:
 
 ```bash
-nextflow run monsterlizzie/gbs_typing_pipeline -r main \
+nextflow run monsterlizzie/gbs_typing_pipeline -r v2.0.1 \
   -profile standard \
   --qc_only false \
   --reads /path/to/paired_reads \
